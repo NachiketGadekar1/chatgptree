@@ -633,9 +633,10 @@ console.log('ChatGPTree content script starting...');
   }
 
   function calculateNodePositions() {
-    const LEVEL_HEIGHT = 140; // Increased vertical spacing
-    const OFFSET = 100; // Increased horizontal spacing
-    const START_X = 450; // Increased starting position for more room
+    const LEVEL_HEIGHT = 140; // Vertical spacing
+    const BASE_OFFSET = 100; // Base horizontal spacing
+    const START_X = 450; // Starting position
+    const BRANCH_SPACING = 120; // Additional spacing between branches
 
     // Start with root node
     const rootNode = treeData.nodes.get([...treeData.nodes.keys()][0]);
@@ -659,27 +660,31 @@ console.log('ChatGPTree content script starting...');
 
     assignLevels(rootNode.messageId);
 
-    // Second pass: Position nodes with equal left/right offset
+    // Second pass: Position nodes with branch-aware positioning
     function positionNode(nodeId, x, y, branchLevel = 0) {
       const node = treeData.nodes.get(nodeId);
       if (!node) return;
 
       const level = levels.get(nodeId) || 0;
       
-      // Position current node - equal offset for left and right
-      node.x = branchLevel === 0 ? 
-        x - (level * OFFSET) : // Main chain moves left by level
-        x + (level * OFFSET); // Branches move right by same amount
-      node.y = y + (level * LEVEL_HEIGHT); // Consistent Y position based on level
+      // Position current node with branch-aware offset
+      if (branchLevel === 0) {
+        // Main chain moves left by level
+        node.x = x - (level * BASE_OFFSET);
+      } else {
+        // Branches move right with increasing offset based on branch level
+        node.x = x + (level * BASE_OFFSET) + (branchLevel * BRANCH_SPACING);
+      }
+      node.y = y + (level * LEVEL_HEIGHT);
 
-      // Position children maintaining branch levels
+      // Position children with adjusted branch levels
       node.children.forEach((childId, i) => {
         if (i === 0 && branchLevel === 0) {
           // First child in main chain continues current branch level
           positionNode(childId, x, y, branchLevel);
         } else {
-          // Other children create new branches to the right
-          positionNode(childId, x, y, branchLevel + 1);
+          // Other children create new branches with increasing branch levels
+          positionNode(childId, x, y, branchLevel + i);
         }
       });
     }
