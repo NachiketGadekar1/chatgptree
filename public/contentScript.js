@@ -10,6 +10,14 @@ console.log('ChatGPTree content script starting...');
   let initRetryCount = 0;
   let urlCheckInterval = null;
   const MAX_INIT_RETRIES = 10;
+  
+  // Tree data structure
+  let treeData = {
+    nodes: new Map(), // messageId -> { messageId, text, parentId, x, y, children: [] }
+    branches: new Map(), // messageId -> [childMessageIds]
+    activeBranch: [], // Current active branch - array of messageIds in order
+    branchStartId: null // Track where branching started when regenerate is clicked
+  };
 
   function waitForChat() {
     if (initRetryCount >= MAX_INIT_RETRIES) {
@@ -481,6 +489,19 @@ console.log('ChatGPTree content script starting...');
       }, 100);
     });
 
+    // Monitor regenerate button clicks
+    document.addEventListener('click', (e) => {
+      const sendBtn = e.target.closest('button.btn.relative.btn-primary');
+      if (sendBtn && sendBtn.textContent.includes('Send')) {
+        const promptElement = e.target.closest('[data-message-author-role="user"]');
+        if (promptElement) {
+          const messageId = promptElement.dataset.messageId;
+          console.log('Branching from message:', messageId);
+          treeData.branchStartId = messageId;
+        }
+      }
+    });
+
     // Observe chat changes
     const chatRoot = document.querySelector('main');
     if (!chatRoot) {
@@ -504,6 +525,7 @@ console.log('ChatGPTree content script starting...');
           const prompts = getUserPrompts();
           if (prompts.length >= 2) {
             console.log('Found enough prompts, rendering buttons');
+            updateTreeData(prompts);
             renderButtons();
             updateTreeVisualization();
           }
@@ -519,13 +541,85 @@ console.log('ChatGPTree content script starting...');
     });
   }
 
+  function updateTreeData(prompts) {
+    // Update tree data with new prompts
+    prompts.forEach((prompt, i) => {
+      const messageId = prompt.dataset.messageId;
+      if (!treeData.nodes.has(messageId)) {
+        const node = {
+          messageId,
+          text: getPromptPreview(prompt, 20),
+          parentId: null,
+          children: [],
+          x: 0,
+          y: 0
+        };
+
+        // If this is a branch node
+        if (treeData.branchStartId) {
+          node.parentId = treeData.branchStartId;
+          const parentNode = treeData.nodes.get(treeData.branchStartId);
+          if (parentNode) {
+            parentNode.children.push(messageId);
+            // Clear branch start since we've handled it
+            treeData.branchStartId = null;
+          }
+        } else if (i > 0) {
+          // Regular chain - parent is previous prompt
+          const prevPrompt = prompts[i - 1];
+          const parentId = prevPrompt.dataset.messageId;
+          node.parentId = parentId;
+          const parentNode = treeData.nodes.get(parentId);
+          if (parentNode) {
+            parentNode.children.push(messageId);
+          }
+        }
+
+        treeData.nodes.set(messageId, node);
+      }
+    });
+  }
+
+  function calculateNodePositions() {
+    const NODE_SPACING = 150;
+    const LEVEL_HEIGHT = 120;
+    const BRANCH_SPACING = 200;
+    
+    function positionNode(nodeId, x, y, branchLevel = 0) {
+      const node = treeData.nodes.get(nodeId);
+      if (!node) return;
+
+      node.x = x + (branchLevel * BRANCH_SPACING);
+      node.y = y;
+
+      // Position children
+      let childY = y + LEVEL_HEIGHT;
+      node.children.forEach((childId, i) => {
+        // If this is the first child in the original chain
+        if (i === 0 && branchLevel === 0) {
+          positionNode(childId, x, childY, branchLevel);
+        } else {
+          // This is a branch - position it to the right
+          positionNode(childId, x, childY, branchLevel + 1);
+        }
+        childY += LEVEL_HEIGHT;
+      });
+    }
+
+    // Start with root node
+    const rootNode = treeData.nodes.get([...treeData.nodes.keys()][0]);
+    if (rootNode) {
+      positionNode(rootNode.messageId, 300, 50);
+    }
+  }
+
   function createTreeNode(prompt, x, y, isRoot = false) {
     const NODE_RADIUS = 25;
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
 
-    // Shadow
+    // Shadow effect
     const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     shadow.setAttribute('r', NODE_RADIUS.toString());
     shadow.setAttribute('fill', 'rgba(0,0,0,0.1)');
@@ -536,7 +630,7 @@ console.log('ChatGPTree content script starting...');
     circle.setAttribute('r', NODE_RADIUS.toString());
     circle.classList.add('chatgptree-node-circle');
 
-    // Gradient
+    // Gradient definition
     const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
     const id = `gradient-${Math.random().toString(36).substr(2, 9)}`;
     gradient.setAttribute('id', id);
@@ -551,13 +645,23 @@ console.log('ChatGPTree content script starting...');
     text.classList.add('chatgptree-node-text');
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dy', '0.3em');
-    text.textContent = isRoot ? 'Root' : getPromptPreview(prompt, 20);
+    text.textContent = isRoot ? 'Root' : prompt.text;
+
+    // Add interactive hover effect
+    node.onmouseover = () => {
+      circle.style.filter = 'brightness(1.1)';
+      text.style.fontWeight = '600';
+    };
+    node.onmouseout = () => {
+      circle.style.filter = '';
+      text.style.fontWeight = '500';
+    };
 
     node.appendChild(shadow);
     node.appendChild(circle);
     node.appendChild(gradient);
     node.appendChild(text);
-    
+
     return node;
   }
 
@@ -565,12 +669,26 @@ console.log('ChatGPTree content script starting...');
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('chatgptree-node-connection');
     const NODE_RADIUS = 25;
-    const VERTICAL_SPACING = 120;
+
+    // Calculate control points for a curved path that bends horizontally
+    const isBranch = Math.abs(x2 - x1) > 100; // Check if nodes are far apart horizontally
     
-    path.setAttribute('d', `M ${x1} ${y1 + NODE_RADIUS} 
-                          C ${x1} ${y1 + VERTICAL_SPACING/2},
-                            ${x2} ${y2 - VERTICAL_SPACING/2},
-                            ${x2} ${y2 - NODE_RADIUS}`);
+    if (isBranch) {
+      // For branches, create an S-curve that goes right then down/up
+      const midX = x1 + (x2 - x1) * 0.5;
+      path.setAttribute('d', `M ${x1 + NODE_RADIUS} ${y1}
+                            C ${midX} ${y1},
+                              ${midX} ${y2},
+                              ${x2 - NODE_RADIUS} ${y2}`);
+    } else {
+      // For vertical connections, create a simple curved line
+      const midY = (y1 + y2) / 2;
+      path.setAttribute('d', `M ${x1} ${y1 + NODE_RADIUS}
+                            C ${x1} ${midY},
+                              ${x2} ${midY},
+                              ${x2} ${y2 - NODE_RADIUS}`);
+    }
+
     return path;
   }
 
@@ -581,9 +699,6 @@ console.log('ChatGPTree content script starting...');
     const treeContainer = overlay.querySelector('.chatgptree-tree');
     if (!treeContainer) return;
 
-    const prompts = getUserPrompts();
-    if (prompts.length === 0) return;
-
     // Clear existing tree
     treeContainer.innerHTML = '';
 
@@ -591,33 +706,45 @@ console.log('ChatGPTree content script starting...');
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.style.minWidth = '600px';
-    svg.style.minHeight = '400px';
+    svg.style.minWidth = '800px';
+    svg.style.minHeight = '600px';
 
-    // Calculate tree dimensions
-    const NODE_SPACING = 150;
-    const LEVEL_HEIGHT = 120;
-    const width = Math.max(600, NODE_SPACING * prompts.length);
-    const height = Math.max(400, LEVEL_HEIGHT * 4);
-    
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    // Calculate node positions
+    calculateNodePositions();
 
-    // Create root node at top center
-    const rootX = width / 2;
-    const rootY = 50;
-    const rootNode = createTreeNode(null, rootX, rootY, true);
-    svg.appendChild(rootNode);
+    // Find max dimensions
+    let maxX = 0, maxY = 0;
+    treeData.nodes.forEach(node => {
+      maxX = Math.max(maxX, node.x + 200); // Add padding for branches
+      maxY = Math.max(maxY, node.y + 150);
+    });
 
-    // Position prompt nodes in a tree layout
-    prompts.forEach((prompt, i) => {
-      const x = (i + 1) * NODE_SPACING;
-      const y = rootY + LEVEL_HEIGHT;
-      
-      const node = createTreeNode(prompt, x, y);
-      const connection = createConnection(rootX, rootY, x, y);
-      
-      svg.appendChild(connection);
-      svg.appendChild(node);
+    // Set minimum dimensions
+    maxX = Math.max(800, maxX);
+    maxY = Math.max(600, maxY);
+
+    svg.setAttribute('viewBox', `0 0 ${maxX} ${maxY}`);
+
+    // Draw connections first
+    treeData.nodes.forEach(node => {
+      if (node.parentId) {
+        const parent = treeData.nodes.get(node.parentId);
+        if (parent) {
+          const connection = createConnection(parent.x, parent.y, node.x, node.y);
+          svg.appendChild(connection);
+        }
+      }
+    });
+
+    // Draw nodes
+    treeData.nodes.forEach(node => {
+      const treeNode = createTreeNode(
+        { text: node.text },
+        node.x,
+        node.y,
+        !node.parentId // isRoot if it has no parent
+      );
+      svg.appendChild(treeNode);
     });
 
     treeContainer.appendChild(svg);
