@@ -1,0 +1,77 @@
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Modern sidebar layout for chatgptree extension */
+.sidebar {
+  width: 240px;
+  min-width: 180px;
+  max-width: 280px;
+  height: 100vh;
+  background: linear-gradient(135deg, #23272f 60%, #1a1d23 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 2.5rem 1.2rem 1rem 1.2rem;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.10);
+  border-right: 1px solid #23272f;
+  font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+}
+
+.sidebar-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  letter-spacing: 1.2px;
+  color: #6ee7b7;
+}
+
+.sidebar-desc {
+  font-size: 1rem;
+  color: #b5b5b5;
+  margin-bottom: auto;
+  margin-top: 0.5rem;
+}
+
+.sidebar-footer {
+  font-size: 0.92rem;
+  color: #6ee7b7;
+  margin-top: 2rem;
+  opacity: 0.7;
+}
