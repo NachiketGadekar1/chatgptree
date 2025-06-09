@@ -52,6 +52,12 @@ console.log('ChatGPTree content script starting...');
       return;
     }
 
+    // Reset tree data for new chat
+    treeData.nodes = new Map();
+    treeData.branches = new Map();
+    treeData.activeBranch = [];
+    treeData.branchStartId = null;
+
     if (!isInitialized) {
       injectStyles();
       setupObservers();
@@ -83,6 +89,13 @@ console.log('ChatGPTree content script starting...');
     if (overlay) {
       overlay.remove();
     }
+    
+    // Clear tree data
+    console.log('Clearing tree data');
+    treeData.nodes.clear();
+    treeData.branches.clear();
+    treeData.activeBranch = [];
+    treeData.branchStartId = null;
 
     // Clean up observer
     if (observer) {
@@ -273,31 +286,66 @@ console.log('ChatGPTree content script starting...');
 
       .chatgptree-node {
         position: relative;
+        cursor: pointer;
       }
 
       .chatgptree-node-circle {
         fill: #4299e1;
-        stroke: #2b6cb0;
-        stroke-width: 2;
-        cursor: pointer;
-        transition: all 0.2s ease;
+        stroke: #3182ce;
+        stroke-width: 2.5;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
       }
 
       .chatgptree-node-circle:hover {
         fill: #63b3ed;
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+        transform: scale(1.02);
       }
 
       .chatgptree-node-text {
-        fill: #2d3748;
+        fill: #1a202c;
         font-size: 14px;
         font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         pointer-events: none;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .chatgptree-node-text-bg {
+        opacity: 0.98;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+        rx: 6px;
+      }
+
+      .chatgptree-node-full-text {
+        fill: #1a202c;
+        font-size: 14px;
+        font-weight: 500;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        pointer-events: none;
+        line-height: 1.4;
+      }
+
+      .chatgptree-node-full-text-bg {
+        stroke: #e2e8f0;
+        stroke-width: 1;
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
       }
 
       .chatgptree-node-connection {
         stroke: #a0aec0;
-        stroke-width: 2;
+        stroke-width: 2.5;
         fill: none;
+        opacity: 0.8;
+        filter: drop-shadow(0 1px 2px rgba(0,0,0,0.05));
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      .chatgptree-node:hover .chatgptree-node-connection {
+        stroke: #4a5568;
+        opacity: 1;
       }
 
       @media (max-width: 768px) {
@@ -388,6 +436,10 @@ console.log('ChatGPTree content script starting...');
     const prompts = getUserPrompts();
     console.log('Found prompts:', prompts.length);
     
+    // Always update tree data even with one prompt
+    updateTreeData(prompts);
+    
+    // Only show buttons for 2+ prompts
     if (prompts.length < 2) {
       console.log('Not enough prompts to show buttons');
       return;
@@ -581,40 +633,63 @@ console.log('ChatGPTree content script starting...');
   }
 
   function calculateNodePositions() {
-    const NODE_SPACING = 150;
-    const LEVEL_HEIGHT = 120;
-    const BRANCH_SPACING = 200;
-    
+    const LEVEL_HEIGHT = 140; // Increased vertical spacing
+    const OFFSET = 100; // Increased horizontal spacing
+    const START_X = 450; // Increased starting position for more room
+
+    // Start with root node
+    const rootNode = treeData.nodes.get([...treeData.nodes.keys()][0]);
+    if (!rootNode) return;
+
+    // First pass: Calculate level for each node
+    const levels = new Map();
+    let maxLevel = 0;
+
+    function assignLevels(nodeId, level = 0) {
+      const node = treeData.nodes.get(nodeId);
+      if (!node) return;
+      
+      levels.set(nodeId, level);
+      maxLevel = Math.max(maxLevel, level);
+      
+      node.children.forEach(childId => {
+        assignLevels(childId, level + 1);
+      });
+    }
+
+    assignLevels(rootNode.messageId);
+
+    // Second pass: Position nodes with equal left/right offset
     function positionNode(nodeId, x, y, branchLevel = 0) {
       const node = treeData.nodes.get(nodeId);
       if (!node) return;
 
-      node.x = x + (branchLevel * BRANCH_SPACING);
-      node.y = y;
+      const level = levels.get(nodeId) || 0;
+      
+      // Position current node - equal offset for left and right
+      node.x = branchLevel === 0 ? 
+        x - (level * OFFSET) : // Main chain moves left by level
+        x + (level * OFFSET); // Branches move right by same amount
+      node.y = y + (level * LEVEL_HEIGHT); // Consistent Y position based on level
 
-      // Position children
-      let childY = y + LEVEL_HEIGHT;
+      // Position children maintaining branch levels
       node.children.forEach((childId, i) => {
-        // If this is the first child in the original chain
         if (i === 0 && branchLevel === 0) {
-          positionNode(childId, x, childY, branchLevel);
+          // First child in main chain continues current branch level
+          positionNode(childId, x, y, branchLevel);
         } else {
-          // This is a branch - position it to the right
-          positionNode(childId, x, childY, branchLevel + 1);
+          // Other children create new branches to the right
+          positionNode(childId, x, y, branchLevel + 1);
         }
-        childY += LEVEL_HEIGHT;
       });
     }
 
-    // Start with root node
-    const rootNode = treeData.nodes.get([...treeData.nodes.keys()][0]);
-    if (rootNode) {
-      positionNode(rootNode.messageId, 300, 50);
-    }
+    // Start positioning from root
+    positionNode(rootNode.messageId, START_X, 50);
   }
 
   function createTreeNode(prompt, x, y, isRoot = false) {
-    const NODE_RADIUS = 25;
+    const NODE_RADIUS = 35; // Increased radius for even bigger nodes
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
@@ -640,27 +715,110 @@ console.log('ChatGPTree content script starting...');
     `;
     circle.setAttribute('fill', `url(#${id})`);
 
-    // Text
+    // Text background for better readability
+    const textBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    textBg.classList.add('chatgptree-node-text-bg');
+    textBg.setAttribute('rx', '4');
+    textBg.setAttribute('fill', 'rgba(255,255,255,0.95)');
+
+    // Prepare text content - show only first 11 chars with ellipsis
+    const MAX_DISPLAY = 11;
+    const displayText = prompt.text.length > MAX_DISPLAY ? 
+      prompt.text.substring(0, MAX_DISPLAY) + '...' :
+      prompt.text;
+
+    // Create text elements with improved positioning
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.classList.add('chatgptree-node-text');
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dy', '0.3em');
-    text.textContent = isRoot ? 'Root' : prompt.text;
+    text.setAttribute('font-size', '14px');
 
-    // Add interactive hover effect
-    node.onmouseover = () => {
-      circle.style.filter = 'brightness(1.1)';
+    const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+    textElement.setAttribute('x', '0');
+    textElement.setAttribute('dy', '0.35em');
+    textElement.textContent = displayText;
+    text.appendChild(textElement);
+
+    // Background for single line - extend beyond circle
+    textBg.setAttribute('x', '-45');
+    textBg.setAttribute('y', '-10');
+    textBg.setAttribute('width', '90');
+    textBg.setAttribute('height', '20');
+
+    // Full text hover (initially hidden)
+    const fullTextBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    fullTextBg.setAttribute('class', 'chatgptree-node-full-text-bg');
+    fullTextBg.setAttribute('rx', '4');
+    fullTextBg.setAttribute('fill', 'rgba(255,255,255,0.98)');
+    fullTextBg.style.display = 'none';
+
+    const fullText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    fullText.setAttribute('class', 'chatgptree-node-full-text');
+    fullText.setAttribute('x', '0');
+    fullText.setAttribute('text-anchor', 'middle');
+    fullText.setAttribute('font-size', '14px');
+    
+    // Split full text into lines for hover tooltip
+    const HOVER_MAX_LENGTH = 40;
+    const words = prompt.text.split(' ');
+    let hoverLines = [''];
+    let lineIdx = 0;
+    words.forEach(word => {
+      if ((hoverLines[lineIdx] + ' ' + word).length > HOVER_MAX_LENGTH) {
+        lineIdx++;
+        hoverLines[lineIdx] = '';
+      }
+      hoverLines[lineIdx] = (hoverLines[lineIdx] + ' ' + word).trim();
+    });
+
+    hoverLines.forEach((line, i) => {
+      const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      tspan.setAttribute('x', '0');
+      tspan.setAttribute('dy', i === 0 ? '-1.2em' : '1.4em');
+      tspan.textContent = line;
+      fullText.appendChild(tspan);
+    });
+
+    // Improved hover text background sizing
+    const padding = 12;
+    const lineHeight = 20;
+    const boxWidth = Math.min(400, Math.max(...hoverLines.map(l => l.length * 8)));
+    const boxHeight = hoverLines.length * lineHeight + padding * 2;
+    
+    fullTextBg.setAttribute('x', -boxWidth/2);
+    fullTextBg.setAttribute('y', -(boxHeight/2 + lineHeight/2));
+    fullTextBg.setAttribute('width', boxWidth);
+    fullTextBg.setAttribute('height', boxHeight);
+    
+    fullText.style.display = 'none';
+    fullTextBg.style.display = 'none';
+
+    // Enhanced hover effects
+    const showFullText = () => {
+      circle.style.filter = 'brightness(1.1) drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
       text.style.fontWeight = '600';
+      fullTextBg.style.display = '';
+      fullText.style.display = '';
     };
-    node.onmouseout = () => {
+    
+    const hideFullText = () => {
       circle.style.filter = '';
       text.style.fontWeight = '500';
+      fullTextBg.style.display = 'none';
+      fullText.style.display = 'none';
     };
 
+    node.onmouseover = showFullText;
+    node.onmouseout = hideFullText;
+
+    // Append elements in correct order for proper layering
     node.appendChild(shadow);
     node.appendChild(circle);
     node.appendChild(gradient);
+    node.appendChild(textBg);
     node.appendChild(text);
+    node.appendChild(fullTextBg);
+    node.appendChild(fullText);
 
     return node;
   }
@@ -668,27 +826,28 @@ console.log('ChatGPTree content script starting...');
   function createConnection(x1, y1, x2, y2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('chatgptree-node-connection');
-    const NODE_RADIUS = 25;
-
-    // Calculate control points for a curved path that bends horizontally
-    const isBranch = Math.abs(x2 - x1) > 100; // Check if nodes are far apart horizontally
+    const NODE_RADIUS = 35; // Match the new node radius
+    const VERTICAL_OFFSET = 50; // Increased control point offset for smoother curves
     
-    if (isBranch) {
-      // For branches, create an S-curve that goes right then down/up
-      const midX = x1 + (x2 - x1) * 0.5;
-      path.setAttribute('d', `M ${x1 + NODE_RADIUS} ${y1}
-                            C ${midX} ${y1},
-                              ${midX} ${y2},
-                              ${x2 - NODE_RADIUS} ${y2}`);
-    } else {
-      // For vertical connections, create a simple curved line
-      const midY = (y1 + y2) / 2;
-      path.setAttribute('d', `M ${x1} ${y1 + NODE_RADIUS}
-                            C ${x1} ${midY},
-                              ${x2} ${midY},
-                              ${x2} ${y2 - NODE_RADIUS}`);
-    }
+    // Always start from bottom of parent node
+    const startX = x1;
+    const startY = y1 + NODE_RADIUS;
+    
+    // Always end at top of child node
+    const endX = x2;
+    const endY = y2 - NODE_RADIUS;
+    
+    // Calculate control points vertical positions
+    const cp1Y = startY + VERTICAL_OFFSET;
+    const cp2Y = endY - VERTICAL_OFFSET;
 
+    // Create symmetrical curve
+    const d = `M ${startX} ${startY}
+               C ${startX} ${cp1Y},
+                 ${endX} ${cp2Y},
+                 ${endX} ${endY}`;
+
+    path.setAttribute('d', d);
     return path;
   }
 
@@ -742,7 +901,7 @@ console.log('ChatGPTree content script starting...');
         { text: node.text },
         node.x,
         node.y,
-        !node.parentId // isRoot if it has no parent
+        false // never use root text
       );
       svg.appendChild(treeNode);
     });
