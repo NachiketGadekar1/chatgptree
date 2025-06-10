@@ -19,6 +19,11 @@ console.log('ChatGPTree content script starting...');
     branchStartId: null // Track where branching started when regenerate is clicked
   };
 
+  // Add panning state variables at the top near other state variables
+  let isPanning = false;
+  let startPoint = { x: 0, y: 0 };
+  let viewOffset = { x: 0, y: 0 };
+
   function waitForChat() {
     if (initRetryCount >= MAX_INIT_RETRIES) {
       console.log('Max retries reached for current attempt');
@@ -268,20 +273,37 @@ console.log('ChatGPTree content script starting...');
         border-radius: 12px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         padding: 24px;
-        max-width: 90vw;
-        max-height: 90vh;
-        overflow: auto;
+        width: 90vw;
+        height: 90vh;
+        overflow: hidden;
         border: 1px solid rgba(255, 255, 255, 0.2);
+        cursor: grab;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        touch-action: none;
+      }
+
+      .chatgptree-tree-container.grabbing {
+        cursor: grabbing;
       }
 
       .chatgptree-tree {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: relative;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
       }
       
       .chatgptree-tree svg {
         background: transparent;
+        position: absolute;
+        transform-origin: 0 0;
       }
 
       .chatgptree-node {
@@ -310,6 +332,10 @@ console.log('ChatGPTree content script starting...');
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         pointer-events: none;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
       }
 
       .chatgptree-node-text-bg {
@@ -514,6 +540,123 @@ console.log('ChatGPTree content script starting...');
     return overlay;
   }
 
+  // Add panning functionality
+  function initializePanningEvents(container, svg) {
+    console.log('Initializing panning events');
+    let currentTransform = { x: 0, y: 0, scale: 1 };
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    // Set initial transform to center the view
+    const svgBounds = svg.getBoundingClientRect();
+    const containerBounds = container.getBoundingClientRect();
+    
+    // Calculate initial scale to fit content nicely
+    const viewBox = svg.viewBox.baseVal;
+    const scale = Math.min(
+      containerBounds.width / viewBox.width,
+      containerBounds.height / viewBox.height
+    ) * 0.8; // 80% of max scale for some padding
+    
+    // Calculate center position based on scaled dimensions
+    currentTransform.scale = scale;
+    const scaledWidth = viewBox.width * scale;
+    const scaledHeight = viewBox.height * scale;
+    currentTransform.x = (containerBounds.width - scaledWidth) / 2;
+    currentTransform.y = (containerBounds.height - scaledHeight) / 2;
+    
+    function updateTransform() {
+      // Create transform matrix for both translation and scale
+      const matrix = `matrix(${currentTransform.scale}, 0, 0, ${currentTransform.scale}, ${currentTransform.x}, ${currentTransform.y})`;
+      svg.setAttribute('transform', matrix);
+    }
+    
+    // Apply initial transform
+    console.log('Initial transform:', currentTransform);
+    updateTransform();
+
+    function startPan(evt) {
+      if (evt.button !== 0) return; // Only handle left mouse button
+      
+      evt.preventDefault(); // Prevent text selection
+      container.classList.add('grabbing');
+      isPanning = true;
+      lastMouseX = evt.clientX;
+      lastMouseY = evt.clientY;
+      
+      // Add event listeners for move and end
+      document.addEventListener('mousemove', pan);
+      document.addEventListener('mouseup', endPan);
+    }
+
+    function pan(evt) {
+      if (!isPanning) return;
+      evt.preventDefault();
+      
+      // Calculate the distance moved
+      const deltaX = evt.clientX - lastMouseX;
+      const deltaY = evt.clientY - lastMouseY;
+      
+      // Update the current position
+      currentTransform.x += deltaX;
+      currentTransform.y += deltaY;
+      
+      // Store the current mouse position for next move
+      lastMouseX = evt.clientX;
+      lastMouseY = evt.clientY;
+      
+      console.log('Panning:', { deltaX, deltaY, ...currentTransform });
+      updateTransform();
+    }
+
+    function endPan() {
+      if (!isPanning) return;
+      container.classList.remove('grabbing');
+      isPanning = false;
+      
+      // Remove event listeners
+      document.removeEventListener('mousemove', pan);
+      document.removeEventListener('mouseup', endPan);
+    }
+
+    // Add zoom functionality with debug logs
+    container.addEventListener('wheel', (evt) => {
+      evt.preventDefault();
+      
+      const delta = evt.deltaY;
+      const scaleChange = delta > 0 ? 0.9 : 1.1; // Scale down or up by 10%
+      const newScale = currentTransform.scale * scaleChange;
+      
+      // Limit scale range
+      if (newScale >= 0.1 && newScale <= 3) {
+        // Calculate mouse position relative to container
+        const rect = container.getBoundingClientRect();
+        const mouseX = evt.clientX - rect.left;
+        const mouseY = evt.clientY - rect.top;
+        
+        // Calculate point on SVG under mouse before scaling
+        const svgX = (mouseX - currentTransform.x) / currentTransform.scale;
+        const svgY = (mouseY - currentTransform.y) / currentTransform.scale;
+        
+        // Scale from mouse position
+        currentTransform.scale = newScale;
+        currentTransform.x = mouseX - (svgX * newScale);
+        currentTransform.y = mouseY - (svgY * newScale);
+        
+        updateTransform();
+      }
+    }, { passive: false });
+
+    // Add initial mousedown listener
+    container.addEventListener('mousedown', startPan);
+
+    // Update container styles to prevent selection
+    container.style.overflow = 'hidden';
+    container.style.userSelect = 'none';
+    container.style.webkitUserSelect = 'none';
+    container.style.msUserSelect = 'none';
+  }
+
   function toggleTreeOverlay() {
     const overlay = document.querySelector('.chatgptree-overlay');
     const treeBtn = document.querySelector('.chatgptree-tree-btn');
@@ -633,64 +776,61 @@ console.log('ChatGPTree content script starting...');
   }
 
   function calculateNodePositions() {
-    const LEVEL_HEIGHT = 140; // Vertical spacing
-    const BASE_OFFSET = 100; // Base horizontal spacing
-    const START_X = 450; // Starting position
-    const BRANCH_SPACING = 120; // Additional spacing between branches
+    // Define layout constants for easy tweaking
+    const LEVEL_HEIGHT = 160;      // Vertical distance between parent and child
+    const SIBLING_SPACING = 220;   // Horizontal distance between sibling nodes
+    const START_Y = 50;            // Initial Y position for the root node
+    const START_X = 1000;          // A central starting X position for the root node
 
-    // Start with root node
-    const rootNode = treeData.nodes.get([...treeData.nodes.keys()][0]);
-    if (!rootNode) return;
-
-    // First pass: Calculate level for each node
-    const levels = new Map();
-    let maxLevel = 0;
-
-    function assignLevels(nodeId, level = 0) {
-      const node = treeData.nodes.get(nodeId);
-      if (!node) return;
-      
-      levels.set(nodeId, level);
-      maxLevel = Math.max(maxLevel, level);
-      
-      node.children.forEach(childId => {
-        assignLevels(childId, level + 1);
-      });
+    // Find the root node(s). For this tree structure, it's the first one added.
+    // A more robust method would be to find all nodes with parentId === null.
+    const rootNodeId = [...treeData.nodes.keys()][0];
+    if (!rootNodeId) {
+      console.log("No root node found to start positioning.");
+      return;
     }
 
-    assignLevels(rootNode.messageId);
-
-    // Second pass: Position nodes with branch-aware positioning
-    function positionNode(nodeId, x, y, branchLevel = 0) {
+    /**
+     * A recursive function to position a node and all its descendants.
+     * @param {string} nodeId - The ID of the node to position.
+     * @param {number} x - The target x-coordinate for this node.
+     * @param {number} y - The target y-coordinate for this node.
+     */
+    function positionNodeAndChildren(nodeId, x, y) {
       const node = treeData.nodes.get(nodeId);
       if (!node) return;
 
-      const level = levels.get(nodeId) || 0;
-      
-      // Position current node with branch-aware offset
-      if (branchLevel === 0) {
-        // Main chain moves left by level
-        node.x = x - (level * BASE_OFFSET);
-      } else {
-        // Branches move right with increasing offset based on branch level
-        node.x = x + (level * BASE_OFFSET) + (branchLevel * BRANCH_SPACING);
+      // 1. Assign the calculated position to the current node
+      node.x = x;
+      node.y = y;
+
+      const children = node.children;
+      const numChildren = children.length;
+
+      // If this is a leaf node (no children), we stop.
+      if (numChildren === 0) {
+        return;
       }
-      node.y = y + (level * LEVEL_HEIGHT);
 
-      // Position children with adjusted branch levels
-      node.children.forEach((childId, i) => {
-        if (i === 0 && branchLevel === 0) {
-          // First child in main chain continues current branch level
-          positionNode(childId, x, y, branchLevel);
-        } else {
-          // Other children create new branches with increasing branch levels
-          positionNode(childId, x, y, branchLevel + i);
-        }
-      });
+      // 2. Calculate the total width required for all direct children
+      const totalChildrenWidth = (numChildren - 1) * SIBLING_SPACING;
+
+      // 3. Calculate the starting X position for the first child.
+      // This is the key to centering: start from the parent's center and shift left by half the total width.
+      const startX = x - totalChildrenWidth / 2;
+      
+      const childY = y + LEVEL_HEIGHT;
+
+      // 4. Recursively position each child
+      for (let i = 0; i < numChildren; i++) {
+        const childId = children[i];
+        const childX = startX + i * SIBLING_SPACING;
+        positionNodeAndChildren(childId, childX, childY);
+      }
     }
 
-    // Start positioning from root
-    positionNode(rootNode.messageId, START_X, 50);
+    // Start the recursive positioning from the root node
+    positionNodeAndChildren(rootNodeId, START_X, START_Y);
   }
 
   function createTreeNode(prompt, x, y, isRoot = false) {
@@ -856,7 +996,7 @@ console.log('ChatGPTree content script starting...');
     return path;
   }
 
-  function updateTreeVisualization() {
+    function updateTreeVisualization() {
     const overlay = document.querySelector('.chatgptree-overlay');
     if (!overlay || !overlay.classList.contains('visible')) return;
 
@@ -870,8 +1010,6 @@ console.log('ChatGPTree content script starting...');
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.style.minWidth = '800px';
-    svg.style.minHeight = '600px';
 
     // Calculate node positions
     calculateNodePositions();
@@ -883,11 +1021,13 @@ console.log('ChatGPTree content script starting...');
       maxY = Math.max(maxY, node.y + 150);
     });
 
-    // Set minimum dimensions
-    maxX = Math.max(800, maxX);
-    maxY = Math.max(600, maxY);
+    // Set minimum dimensions with padding
+    const PADDING = 500;
+    maxX = Math.max(2000, maxX + PADDING * 2); // Increased minimum width
+    maxY = Math.max(1500, maxY + PADDING * 2); // Increased minimum height
 
-    svg.setAttribute('viewBox', `0 0 ${maxX} ${maxY}`);
+    // Set the SVG viewBox to show all content
+    svg.setAttribute('viewBox', `-${PADDING} -${PADDING} ${maxX} ${maxY}`);
 
     // Draw connections first
     treeData.nodes.forEach(node => {
@@ -906,14 +1046,32 @@ console.log('ChatGPTree content script starting...');
         { text: node.text },
         node.x,
         node.y,
-        false // never use root text
+        false
       );
       svg.appendChild(treeNode);
     });
 
     treeContainer.appendChild(svg);
-  }
 
+    // Initialize panning after SVG is mounted
+    const container = overlay.querySelector('.chatgptree-tree-container');
+    if (container && svg) {
+      // --- START: FIX ---
+      // The clone/replace trick to remove old event listeners from the container
+      const newContainer = container.cloneNode(true);
+      container.replaceWith(newContainer);
+
+      // CRITICAL FIX: After cloning, get a reference to the NEW SVG
+      // that is now inside the new container in the DOM.
+      const newSvgInDom = newContainer.querySelector('svg');
+
+      if (newSvgInDom) {
+        // Pass the correct, visible SVG element to the initializer.
+        initializePanningEvents(newContainer, newSvgInDom);
+      }
+      // --- END: FIX ---
+    }
+  }
   // Start everything
   startUrlWatcher();
   waitForChat();
