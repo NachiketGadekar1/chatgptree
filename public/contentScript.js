@@ -20,9 +20,22 @@ console.log('ChatGPTree content script starting...');
   let viewState = {
     x: 0,
     y: 0,
-    scale: 0.1, 
+    scale: 0.75, 
     isInitialized: false // Flag to track if the initial position has been set
   };
+
+  function logCurrentView() {
+    console.log(`
+      viewState = {
+        x: ${viewState.x},
+        y: ${viewState.y},
+        scale: ${viewState.scale},
+        isInitialized: true
+      };
+    `);
+  }
+  // Expose the function to the global scope for console debugging
+  window.logCurrentView = logCurrentView;
 
   // Add panning state variables at the top near other state variables
   let isPanning = false;
@@ -547,38 +560,26 @@ console.log('ChatGPTree content script starting...');
   }
 
   // Add panning functionality
-  function initializePanningEvents(container, svg) {
-    console.log('Initializing panning events');
+  function initializePanningEvents(container, viewportGroup) {
+    console.log('Initializing panning events on viewport group');
 
-    // The updateTransform function now reads from the persistent viewState
+    // This function now applies the transform to the <g> element
     function updateTransform() {
       const matrix = `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`;
-      svg.setAttribute('transform', matrix);
+      viewportGroup.setAttribute('transform', matrix);
     }
-    
-    // If this is the first time we're showing the tree, calculate a good starting position.
+
     if (!viewState.isInitialized) {
-      console.log('Calculating initial view position...');
-      const containerBounds = container.getBoundingClientRect();
+      console.log('Applying your custom default view...');
       
-      // Find the root node to center the view on it
-      const rootNodeId = [...treeData.nodes.keys()][0];
-      const rootNode = treeData.nodes.get(rootNodeId);
-      
-      if (rootNode) {
-        // Center the view on the root node with the default scale
-        viewState.x = (containerBounds.width / 2) - (rootNode.x * viewState.scale);
-        viewState.y = (containerBounds.height / 2) - (rootNode.y * viewState.scale) - 50; // A little vertical offset
-      } else {
-        // Fallback if no root node is found
-        viewState.x = containerBounds.width / 2;
-        viewState.y = containerBounds.height / 2;
-      }
+      // These are the exact coordinates 
+      viewState.x = -10165.331819457246;
+      viewState.y = -548.3256309102353;
+      viewState.scale = 6.079802199016465;
       
       viewState.isInitialized = true;
     }
 
-    // Apply the current (initial or user-modified) transform
     updateTransform();
 
     let lastMouseX = 0;
@@ -591,7 +592,6 @@ console.log('ChatGPTree content script starting...');
       isPanning = true;
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
-      
       document.addEventListener('mousemove', pan);
       document.addEventListener('mouseup', endPan);
     }
@@ -599,17 +599,10 @@ console.log('ChatGPTree content script starting...');
     function pan(evt) {
       if (!isPanning) return;
       evt.preventDefault();
-      
-      const deltaX = evt.clientX - lastMouseX;
-      const deltaY = evt.clientY - lastMouseY;
-      
-      // Modify the persistent viewState
-      viewState.x += deltaX;
-      viewState.y += deltaY;
-      
+      viewState.x += evt.clientX - lastMouseX;
+      viewState.y += evt.clientY - lastMouseY;
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
-      
       updateTransform();
     }
 
@@ -625,17 +618,16 @@ console.log('ChatGPTree content script starting...');
       evt.preventDefault();
       const delta = evt.deltaY;
       const scaleChange = delta > 0 ? 0.9 : 1.1;
+      // Let's increase the zoom limit to allow for closer inspection
       const newScale = viewState.scale * scaleChange;
       
-      if (newScale >= 0.1 && newScale <= 3) {
+      if (newScale >= 0.1 && newScale <= 10) { // Increased max zoom to 10x
         const rect = container.getBoundingClientRect();
         const mouseX = evt.clientX - rect.left;
         const mouseY = evt.clientY - rect.top;
-        
         const svgX = (mouseX - viewState.x) / viewState.scale;
         const svgY = (mouseY - viewState.y) / viewState.scale;
         
-        // Modify the persistent viewState
         viewState.scale = newScale;
         viewState.x = mouseX - (svgX * newScale);
         viewState.y = mouseY - (svgY * newScale);
@@ -645,8 +637,6 @@ console.log('ChatGPTree content script starting...');
     }, { passive: false });
 
     container.addEventListener('mousedown', startPan);
-
-    container.style.overflow = 'hidden';
     container.style.userSelect = 'none';
   }
   // --- END: MODIFIED FUNCTION ---
@@ -770,13 +760,11 @@ console.log('ChatGPTree content script starting...');
   }
 
   function calculateNodePositions() {
-    // --- START: NEW/ADJUSTED CONSTANTS for layout ---
     const LEVEL_HEIGHT = 160;    // Vertical distance between levels
     const NODE_WIDTH = 200;      // The conceptual width of a single node
     const SIBLING_GAP = 50;      // The minimum horizontal gap between sibling subtrees
-    const START_Y = 50;          // Initial Y position for the root node
-    const START_X = 1000;        // A central starting X position
-    // --- END: NEW/ADJUSTED CONSTANTS for layout ---
+    const START_Y = 150;         // Give it a bit more top margin
+    const START_X = 2000;        // Center in our new 4000-width fixed viewBox
 
     // This function uses a two-pass algorithm to prevent node/subtree overlap.
     // Pass 1 (post-order traversal): Calculates the width of each subtree.
@@ -1032,80 +1020,65 @@ console.log('ChatGPTree content script starting...');
     return path;
   }
 
-    function updateTreeVisualization() {
+  function updateTreeVisualization() {
     const overlay = document.querySelector('.chatgptree-overlay');
     if (!overlay || !overlay.classList.contains('visible')) return;
 
-    const treeContainer = overlay.querySelector('.chatgptree-tree');
+    const treeContainer = overlay.querySelector('.chatgptree-tree-container');
     if (!treeContainer) return;
 
-    // Clear existing tree
-    treeContainer.innerHTML = '';
+    // We no longer need to clear the innerHTML of treeContainer directly
+    const treeRoot = treeContainer.querySelector('.chatgptree-tree');
+    if (!treeRoot) return;
+    treeRoot.innerHTML = ''; // Clear the drawing area
 
-    // Create SVG
+    // Create SVG with a fixed, large coordinate system
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
+    svg.setAttribute('viewBox', '0 0 4000 3000'); // Our static "world"
 
-    // Calculate node positions
+    // --- START: CRITICAL CHANGE ---
+    // Create a group element that will act as our viewport for panning and zooming.
+    // All transformations will be applied to this group.
+    const viewportGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    viewportGroup.classList.add('chatgptree-viewport');
+    // --- END: CRITICAL CHANGE ---
+
+    // Calculate node positions within our static world
     calculateNodePositions();
 
-    // Find max dimensions
-    let maxX = 0, maxY = 0;
-    treeData.nodes.forEach(node => {
-      maxX = Math.max(maxX, node.x + 200); // Add padding for branches
-      maxY = Math.max(maxY, node.y + 150);
-    });
-
-    // Set minimum dimensions with padding
-    const PADDING = 500;
-    maxX = Math.max(2000, maxX + PADDING * 2); // Increased minimum width
-    maxY = Math.max(1500, maxY + PADDING * 2); // Increased minimum height
-
-    // Set the SVG viewBox to show all content
-    svg.setAttribute('viewBox', `-${PADDING} -${PADDING} ${maxX} ${maxY}`);
-
-    // Draw connections first
+    // Draw connections and append them to the VIEWPORT GROUP
     treeData.nodes.forEach(node => {
       if (node.parentId) {
         const parent = treeData.nodes.get(node.parentId);
         if (parent) {
           const connection = createConnection(parent.x, parent.y, node.x, node.y);
-          svg.appendChild(connection);
+          viewportGroup.appendChild(connection); // Append to group
         }
       }
     });
 
-    // Draw nodes
+    // Draw nodes and append them to the VIEWPORT GROUP
     treeData.nodes.forEach(node => {
-      const treeNode = createTreeNode(
-        { text: node.text },
-        node.x,
-        node.y,
-        false
-      );
-      svg.appendChild(treeNode);
+      const treeNode = createTreeNode({ text: node.text }, node.x, node.y, false);
+      viewportGroup.appendChild(treeNode); // Append to group
     });
 
-    treeContainer.appendChild(svg);
+    // Append the viewport group to the SVG, and the SVG to the container
+    svg.appendChild(viewportGroup);
+    treeRoot.appendChild(svg);
 
-    // Initialize panning after SVG is mounted
-    const container = overlay.querySelector('.chatgptree-tree-container');
-    if (container && svg) {
-      // --- START: FIX ---
-      // The clone/replace trick to remove old event listeners from the container
-      const newContainer = container.cloneNode(true);
-      container.replaceWith(newContainer);
+    // This part handles the event listener re-attachment safely
+    const newContainer = treeContainer.cloneNode(true);
+    treeContainer.replaceWith(newContainer);
 
-      // CRITICAL FIX: After cloning, get a reference to the NEW SVG
-      // that is now inside the new container in the DOM.
-      const newSvgInDom = newContainer.querySelector('svg');
+    // Get a reference to the NEW viewport group inside the new container
+    const newViewportGroup = newContainer.querySelector('.chatgptree-viewport');
 
-      if (newSvgInDom) {
-        // Pass the correct, visible SVG element to the initializer.
-        initializePanningEvents(newContainer, newSvgInDom);
-      }
-      // --- END: FIX ---
+    if (newViewportGroup) {
+        // Pass the container and the viewport group to the panning logic
+        initializePanningEvents(newContainer, newViewportGroup);
     }
   }
   // Start everything
