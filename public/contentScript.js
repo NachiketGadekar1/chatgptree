@@ -290,8 +290,48 @@ console.log('ChatGPTree content script starting...');
       .chatgptree-overlay.visible {
         display: flex;
       }
+
+      .chatgptree-overlay-title {
+        position: absolute;
+        top: 25px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #6ee7b7;
+        font-size: 24px;
+        font-weight: 600;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+      }
+
+      .chatgptree-close-btn {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        line-height: 1;
+        padding-bottom: 4px;
+        transition: all 0.2s ease;
+        z-index: 10;
+      }
+      .chatgptree-close-btn:hover {
+        background: rgba(255, 255, 255, 0.4);
+        transform: scale(1.1);
+      }
       
       .chatgptree-tree-container {
+        position: relative; /* Needed for child elements */
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(8px);
         border-radius: 12px;
@@ -550,16 +590,19 @@ console.log('ChatGPTree content script starting...');
       overlay = document.createElement('div');
       overlay.className = 'chatgptree-overlay';
       overlay.innerHTML = `
+        <span class="chatgptree-overlay-title">Chatgptree</span>
+        <button class="chatgptree-close-btn">×</button>
         <div class="chatgptree-tree-container">
           <div class="chatgptree-tree"></div>
         </div>
       `;
-      overlay.onclick = (e) => {
-        if (e.target === overlay) {
-          toggleTreeOverlay();
-        }
-      };
       document.body.appendChild(overlay);
+
+      // Attach listener to the new close button
+      const closeBtn = overlay.querySelector('.chatgptree-close-btn');
+      if (closeBtn) {
+          closeBtn.onclick = toggleTreeOverlay;
+      }
     }
     return overlay;
   }
@@ -590,7 +633,7 @@ console.log('ChatGPTree content script starting...');
     let lastMouseX = 0;
     let lastMouseY = 0;
     let panTicking = false;
-    const panSpeed = 2.0; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
+    const panSpeed = 5.0; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
 
     function startPan(evt) {
       if (evt.button !== 0) return;
@@ -663,14 +706,40 @@ console.log('ChatGPTree content script starting...');
   }
   // --- END: MODIFIED FUNCTION ---
 
+  function handleEscapeKey(e) {
+    if (e.key === 'Escape') {
+      const overlay = document.querySelector('.chatgptree-overlay');
+      // Check if the overlay is currently visible before toggling
+      if (overlay && overlay.classList.contains('visible')) {
+        toggleTreeOverlay();
+      }
+    }
+  }
+
   function toggleTreeOverlay() {
     const overlay = document.querySelector('.chatgptree-overlay');
     const treeBtn = document.querySelector('.chatgptree-tree-btn');
+    const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
+  
     if (overlay) {
       const isVisible = overlay.classList.toggle('visible');
       treeBtn.classList.toggle('active', isVisible);
+  
+      // Show/hide other UI elements based on overlay visibility
+      if (treeBtn) {
+        treeBtn.style.display = isVisible ? 'none' : 'flex';
+      }
+      if (promptStack) {
+        promptStack.style.display = isVisible ? 'none' : 'flex';
+      }
+  
       if (isVisible) {
+        // Add escape key listener when overlay is opened
+        document.addEventListener('keydown', handleEscapeKey);
         updateTreeVisualization();
+      } else {
+        // Remove escape key listener when overlay is closed
+        document.removeEventListener('keydown', handleEscapeKey);
       }
     }
   }
