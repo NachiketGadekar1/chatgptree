@@ -776,63 +776,105 @@ console.log('ChatGPTree content script starting...');
   }
 
   function calculateNodePositions() {
-    // Define layout constants for easy tweaking
-    const LEVEL_HEIGHT = 160;      // Vertical distance between parent and child
-    const SIBLING_SPACING = 220;   // Horizontal distance between sibling nodes
-    const START_Y = 50;            // Initial Y position for the root node
-    const START_X = 1000;          // A central starting X position for the root node
+    // --- START: NEW/ADJUSTED CONSTANTS for layout ---
+    const LEVEL_HEIGHT = 160;    // Vertical distance between levels
+    const NODE_WIDTH = 200;      // The conceptual width of a single node
+    const SIBLING_GAP = 50;      // The minimum horizontal gap between sibling subtrees
+    const START_Y = 50;          // Initial Y position for the root node
+    const START_X = 1000;        // A central starting X position
+    // --- END: NEW/ADJUSTED CONSTANTS for layout ---
 
-    // Find the root node(s). For this tree structure, it's the first one added.
-    // A more robust method would be to find all nodes with parentId === null.
-    const rootNodeId = [...treeData.nodes.keys()][0];
-    if (!rootNodeId) {
+    // This function uses a two-pass algorithm to prevent node/subtree overlap.
+    // Pass 1 (post-order traversal): Calculates the width of each subtree.
+    // Pass 2 (pre-order traversal): Assigns the final x, y coordinates.
+
+    const rootNodeIds = [...treeData.nodes.values()]
+      .filter(node => node.parentId === null)
+      .map(node => node.messageId);
+
+    if (rootNodeIds.length === 0) {
       console.log("No root node found to start positioning.");
       return;
     }
+    const rootNodeId = rootNodeIds[0]; // Assuming a single root for now
 
-    /**
-     * A recursive function to position a node and all its descendants.
-     * @param {string} nodeId - The ID of the node to position.
-     * @param {number} x - The target x-coordinate for this node.
-     * @param {number} y - The target y-coordinate for this node.
-     */
-    function positionNodeAndChildren(nodeId, x, y) {
+    // --- PASS 1: Calculate subtree widths (post-order traversal) ---
+    function calculateSubtreeWidths(nodeId) {
       const node = treeData.nodes.get(nodeId);
       if (!node) return;
 
-      // 1. Assign the calculated position to the current node
-      node.x = x;
-      node.y = y;
-
       const children = node.children;
-      const numChildren = children.length;
-
-      // If this is a leaf node (no children), we stop.
-      if (numChildren === 0) {
+      if (children.length === 0) {
+        // A leaf node has a base width
+        node.subtreeWidth = NODE_WIDTH;
         return;
       }
 
-      // 2. Calculate the total width required for all direct children
-      const totalChildrenWidth = (numChildren - 1) * SIBLING_SPACING;
+      // Recursively calculate for all children first
+      children.forEach(calculateSubtreeWidths);
 
-      // 3. Calculate the starting X position for the first child.
-      // This is the key to centering: start from the parent's center and shift left by half the total width.
-      const startX = x - totalChildrenWidth / 2;
+      // The parent's subtree width is the sum of its children's widths plus gaps
+      let totalChildrenWidth = 0;
+      children.forEach(childId => {
+        const childNode = treeData.nodes.get(childId);
+        if (childNode) {
+          totalChildrenWidth += childNode.subtreeWidth;
+        }
+      });
       
-      const childY = y + LEVEL_HEIGHT;
-
-      // 4. Recursively position each child
-      for (let i = 0; i < numChildren; i++) {
-        const childId = children[i];
-        const childX = startX + i * SIBLING_SPACING;
-        positionNodeAndChildren(childId, childX, childY);
-      }
+      // Add gaps between the children
+      totalChildrenWidth += (children.length - 1) * SIBLING_GAP;
+      
+      // The node's own width must also be considered. The subtree width is the max of its own width or its children's total width.
+      node.subtreeWidth = Math.max(NODE_WIDTH, totalChildrenWidth);
     }
 
-    // Start the recursive positioning from the root node
-    positionNodeAndChildren(rootNodeId, START_X, START_Y);
+
+    // --- PASS 2: Position nodes (pre-order traversal) ---
+    function positionNodes(nodeId, x, y) {
+        const node = treeData.nodes.get(nodeId);
+        if (!node) return;
+
+        // Assign the calculated position to the current node
+        node.x = x;
+        node.y = y;
+
+        const children = node.children;
+        if (children.length === 0) {
+            return;
+        }
+
+        // Calculate the total width of all direct children subtrees + gaps
+        let totalChildrenWidth = 0;
+        children.forEach(childId => {
+            totalChildrenWidth += treeData.nodes.get(childId).subtreeWidth;
+        });
+        totalChildrenWidth += (children.length - 1) * SIBLING_GAP;
+        
+        // The starting X for the first child. Center the block of children under the parent.
+        let currentX = x - totalChildrenWidth / 2;
+        const childY = y + LEVEL_HEIGHT;
+
+        // Recursively position each child
+        children.forEach(childId => {
+            const childNode = treeData.nodes.get(childId);
+            if(childNode) {
+                // The child is positioned at the center of its allocated block
+                const childX = currentX + childNode.subtreeWidth / 2;
+                positionNodes(childId, childX, childY);
+                
+                // Move the starting point for the next sibling
+                currentX += childNode.subtreeWidth + SIBLING_GAP;
+            }
+        });
+    }
+
+    // --- Run the passes ---
+    calculateSubtreeWidths(rootNodeId);
+    positionNodes(rootNodeId, START_X, START_Y);
   }
 
+  
   function createTreeNode(prompt, x, y, isRoot = false) {
     const NODE_RADIUS = 35; // Increased radius for even bigger nodes
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
