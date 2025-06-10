@@ -163,7 +163,7 @@ console.log('ChatGPTree content script starting...');
     });
   }
 
-  function injectStyles() {
+function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
       .chatgptree-prompt-jump-stack {
@@ -303,6 +303,7 @@ console.log('ChatGPTree content script starting...');
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
+        text-shadow: none; /* FIX: Explicitly remove glow/shadow */
       }
 
       .chatgptree-close-btn {
@@ -331,7 +332,7 @@ console.log('ChatGPTree content script starting...');
       }
       
       .chatgptree-tree-container {
-        position: relative; /* Needed for child elements */
+        position: relative; 
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(8px);
         border-radius: 12px;
@@ -464,7 +465,7 @@ console.log('ChatGPTree content script starting...');
       }
     `;
     document.head.appendChild(style);
-  }
+}
 
   function getPromptPreview(prompt, maxLength = 50) {
     let text = prompt.textContent.trim();
@@ -537,6 +538,12 @@ console.log('ChatGPTree content script starting...');
 
     stack = document.createElement('div');
     stack.className = 'chatgptree-prompt-jump-stack';
+    
+    // --- FIX: Check if overlay is visible before showing the stack ---
+    const overlay = document.querySelector('.chatgptree-overlay');
+    if (overlay && overlay.classList.contains('visible')) {
+        stack.style.display = 'none';
+    }
     
     prompts.forEach((prompt, i) => {
       console.log('Creating button for prompt', i + 1);
@@ -650,10 +657,8 @@ console.log('ChatGPTree content script starting...');
       if (!isPanning) return;
       evt.preventDefault();
       
-      // --- START: MODIFIED LINES ---
       const deltaX = (evt.clientX - lastMouseX) * panSpeed;
       const deltaY = (evt.clientY - lastMouseY) * panSpeed;
-      // --- END: MODIFIED LINES ---
       
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
@@ -683,7 +688,6 @@ console.log('ChatGPTree content script starting...');
       evt.preventDefault();
       const delta = evt.deltaY;
       const scaleChange = delta > 0 ? 0.9 : 1.1;
-      // Let's increase the zoom limit to allow for closer inspection
       const newScale = viewState.scale * scaleChange;
       
       if (newScale >= 0.1 && newScale <= 10) { // Increased max zoom to 10x
@@ -704,41 +708,41 @@ console.log('ChatGPTree content script starting...');
     container.addEventListener('mousedown', startPan);
     container.style.userSelect = 'none';
   }
-  // --- END: MODIFIED FUNCTION ---
 
   function handleEscapeKey(e) {
     if (e.key === 'Escape') {
       const overlay = document.querySelector('.chatgptree-overlay');
-      // Check if the overlay is currently visible before toggling
       if (overlay && overlay.classList.contains('visible')) {
         toggleTreeOverlay();
       }
     }
   }
 
-  function toggleTreeOverlay() {
+
+function toggleTreeOverlay() {
     const overlay = document.querySelector('.chatgptree-overlay');
     const treeBtn = document.querySelector('.chatgptree-tree-btn');
     const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
   
     if (overlay) {
       const isVisible = overlay.classList.toggle('visible');
-      treeBtn.classList.toggle('active', isVisible);
-  
-      // Show/hide other UI elements based on overlay visibility
+      
+      // --- FIX: Set display style to hide/show UI elements ---
+      const displayStyle = isVisible ? 'none' : 'flex';
       if (treeBtn) {
+        treeBtn.classList.toggle('active', isVisible);
         treeBtn.style.display = isVisible ? 'none' : 'flex';
       }
       if (promptStack) {
-        promptStack.style.display = isVisible ? 'none' : 'flex';
+        promptStack.style.display = displayStyle;
       }
   
       if (isVisible) {
-        // Add escape key listener when overlay is opened
+        // Add escape key listener ONLY when overlay is opened
         document.addEventListener('keydown', handleEscapeKey);
         updateTreeVisualization();
       } else {
-        // Remove escape key listener when overlay is closed
+        // Remove escape key listener ONLY when overlay is closed
         document.removeEventListener('keydown', handleEscapeKey);
       }
     }
@@ -793,10 +797,12 @@ console.log('ChatGPTree content script starting...');
         // Small delay to ensure DOM is settled
         setTimeout(() => {
           const prompts = getUserPrompts();
-          if (prompts.length >= 2) {
-            console.log('Found enough prompts, rendering buttons');
-            updateTreeData(prompts);
-            renderButtons();
+          // We will update tree data regardless, but only show buttons for 2+
+          updateTreeData(prompts);
+          renderButtons();
+          // If the tree view is open, refresh it with new data
+          const overlay = document.querySelector('.chatgptree-overlay');
+          if (overlay && overlay.classList.contains('visible')) {
             updateTreeVisualization();
           }
         }, 100);
@@ -857,10 +863,6 @@ console.log('ChatGPTree content script starting...');
     const START_Y = 150;         // Give it a bit more top margin
     const START_X = 2000;        // Center in our new 4000-width fixed viewBox
 
-    // This function uses a two-pass algorithm to prevent node/subtree overlap.
-    // Pass 1 (post-order traversal): Calculates the width of each subtree.
-    // Pass 2 (pre-order traversal): Assigns the final x, y coordinates.
-
     const rootNodeIds = [...treeData.nodes.values()]
       .filter(node => node.parentId === null)
       .map(node => node.messageId);
@@ -869,103 +871,64 @@ console.log('ChatGPTree content script starting...');
       console.log("No root node found to start positioning.");
       return;
     }
-    const rootNodeId = rootNodeIds[0]; // Assuming a single root for now
+    const rootNodeId = rootNodeIds[0];
 
-    // --- PASS 1: Calculate subtree widths (post-order traversal) ---
     function calculateSubtreeWidths(nodeId) {
       const node = treeData.nodes.get(nodeId);
       if (!node) return;
-
-      const children = node.children;
-      if (children.length === 0) {
-        // A leaf node has a base width
+      if (node.children.length === 0) {
         node.subtreeWidth = NODE_WIDTH;
         return;
       }
-
-      // Recursively calculate for all children first
-      children.forEach(calculateSubtreeWidths);
-
-      // The parent's subtree width is the sum of its children's widths plus gaps
-      let totalChildrenWidth = 0;
-      children.forEach(childId => {
-        const childNode = treeData.nodes.get(childId);
-        if (childNode) {
-          totalChildrenWidth += childNode.subtreeWidth;
-        }
-      });
-      
-      // Add gaps between the children
-      totalChildrenWidth += (children.length - 1) * SIBLING_GAP;
-      
-      // The node's own width must also be considered. The subtree width is the max of its own width or its children's total width.
+      node.children.forEach(calculateSubtreeWidths);
+      let totalChildrenWidth = node.children.reduce((sum, childId) => sum + treeData.nodes.get(childId).subtreeWidth, 0);
+      totalChildrenWidth += (node.children.length - 1) * SIBLING_GAP;
       node.subtreeWidth = Math.max(NODE_WIDTH, totalChildrenWidth);
     }
 
-
-    // --- PASS 2: Position nodes (pre-order traversal) ---
     function positionNodes(nodeId, x, y) {
         const node = treeData.nodes.get(nodeId);
         if (!node) return;
-
-        // Assign the calculated position to the current node
         node.x = x;
         node.y = y;
+        if (node.children.length === 0) return;
 
-        const children = node.children;
-        if (children.length === 0) {
-            return;
-        }
-
-        // Calculate the total width of all direct children subtrees + gaps
-        let totalChildrenWidth = 0;
-        children.forEach(childId => {
-            totalChildrenWidth += treeData.nodes.get(childId).subtreeWidth;
-        });
-        totalChildrenWidth += (children.length - 1) * SIBLING_GAP;
+        let totalChildrenWidth = node.children.reduce((sum, childId) => sum + treeData.nodes.get(childId).subtreeWidth, 0);
+        totalChildrenWidth += (node.children.length - 1) * SIBLING_GAP;
         
-        // The starting X for the first child. Center the block of children under the parent.
         let currentX = x - totalChildrenWidth / 2;
         const childY = y + LEVEL_HEIGHT;
 
-        // Recursively position each child
-        children.forEach(childId => {
+        node.children.forEach(childId => {
             const childNode = treeData.nodes.get(childId);
             if(childNode) {
-                // The child is positioned at the center of its allocated block
                 const childX = currentX + childNode.subtreeWidth / 2;
                 positionNodes(childId, childX, childY);
-                
-                // Move the starting point for the next sibling
                 currentX += childNode.subtreeWidth + SIBLING_GAP;
             }
         });
     }
 
-    // --- Run the passes ---
     calculateSubtreeWidths(rootNodeId);
     positionNodes(rootNodeId, START_X, START_Y);
   }
 
 
   function createTreeNode(prompt, x, y, isRoot = false) {
-    const NODE_RADIUS = 35; // Increased radius for even bigger nodes
+    const NODE_RADIUS = 35; 
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
 
-    // Shadow effect
     const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     shadow.setAttribute('r', NODE_RADIUS.toString());
     shadow.setAttribute('fill', 'rgba(0,0,0,0.1)');
     shadow.setAttribute('transform', 'translate(3, 3)');
 
-    // Main circle
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('r', NODE_RADIUS.toString());
     circle.classList.add('chatgptree-node-circle');
 
-    // Gradient definition
     const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
     const id = `gradient-${Math.random().toString(36).substr(2, 9)}`;
     gradient.setAttribute('id', id);
@@ -975,19 +938,16 @@ console.log('ChatGPTree content script starting...');
     `;
     circle.setAttribute('fill', `url(#${id})`);
 
-    // Text background for better readability
     const textBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     textBg.classList.add('chatgptree-node-text-bg');
     textBg.setAttribute('rx', '4');
     textBg.setAttribute('fill', 'rgba(255,255,255,0.95)');
 
-    // Prepare text content - show only first 11 chars with ellipsis
     const MAX_DISPLAY = 11;
     const displayText = prompt.text.length > MAX_DISPLAY ? 
       prompt.text.substring(0, MAX_DISPLAY) + '...' :
       prompt.text;
 
-    // Create text elements with improved positioning
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.classList.add('chatgptree-node-text');
     text.setAttribute('text-anchor', 'middle');
@@ -999,13 +959,11 @@ console.log('ChatGPTree content script starting...');
     textElement.textContent = displayText;
     text.appendChild(textElement);
 
-    // Background for single line - extend beyond circle
     textBg.setAttribute('x', '-45');
     textBg.setAttribute('y', '-10');
     textBg.setAttribute('width', '90');
     textBg.setAttribute('height', '20');
 
-    // Full text hover (initially hidden)
     const fullTextBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     fullTextBg.setAttribute('class', 'chatgptree-node-full-text-bg');
     fullTextBg.setAttribute('rx', '4');
@@ -1018,7 +976,6 @@ console.log('ChatGPTree content script starting...');
     fullText.setAttribute('text-anchor', 'middle');
     fullText.setAttribute('font-size', '14px');
     
-    // Split full text into lines for hover tooltip
     const HOVER_MAX_LENGTH = 40;
     const words = prompt.text.split(' ');
     let hoverLines = [''];
@@ -1039,7 +996,6 @@ console.log('ChatGPTree content script starting...');
       fullText.appendChild(tspan);
     });
 
-    // Improved hover text background sizing
     const padding = 12;
     const lineHeight = 20;
     const boxWidth = Math.min(400, Math.max(...hoverLines.map(l => l.length * 8)));
@@ -1053,7 +1009,6 @@ console.log('ChatGPTree content script starting...');
     fullText.style.display = 'none';
     fullTextBg.style.display = 'none';
 
-    // Enhanced hover effects
     const showFullText = () => {
       circle.style.filter = 'brightness(1.1) drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
       text.style.fontWeight = '600';
@@ -1071,7 +1026,6 @@ console.log('ChatGPTree content script starting...');
     node.onmouseover = showFullText;
     node.onmouseout = hideFullText;
 
-    // Append elements in correct order for proper layering
     node.appendChild(shadow);
     node.appendChild(circle);
     node.appendChild(gradient);
@@ -1086,26 +1040,18 @@ console.log('ChatGPTree content script starting...');
   function createConnection(x1, y1, x2, y2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('chatgptree-node-connection');
-    const NODE_RADIUS = 35; // Match the new node radius
-    const VERTICAL_OFFSET = 50; // Increased control point offset for smoother curves
+    const NODE_RADIUS = 35; 
+    const VERTICAL_OFFSET = 50; 
     
-    // Always start from bottom of parent node
     const startX = x1;
     const startY = y1 + NODE_RADIUS;
-    
-    // Always end at top of child node
     const endX = x2;
     const endY = y2 - NODE_RADIUS;
     
-    // Calculate control points vertical positions
     const cp1Y = startY + VERTICAL_OFFSET;
     const cp2Y = endY - VERTICAL_OFFSET;
 
-    // Create symmetrical curve
-    const d = `M ${startX} ${startY}
-               C ${startX} ${cp1Y},
-                 ${endX} ${cp2Y},
-                 ${endX} ${endY}`;
+    const d = `M ${startX} ${startY} C ${startX} ${cp1Y}, ${endX} ${cp2Y}, ${endX} ${endY}`;
 
     path.setAttribute('d', d);
     return path;
@@ -1118,57 +1064,44 @@ console.log('ChatGPTree content script starting...');
     const treeContainer = overlay.querySelector('.chatgptree-tree-container');
     if (!treeContainer) return;
 
-    // We no longer need to clear the innerHTML of treeContainer directly
     const treeRoot = treeContainer.querySelector('.chatgptree-tree');
     if (!treeRoot) return;
-    treeRoot.innerHTML = ''; // Clear the drawing area
+    treeRoot.innerHTML = '';
 
-    // Create SVG with a fixed, large coordinate system
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.setAttribute('viewBox', '0 0 4000 3000'); // Our static "world"
+    svg.setAttribute('viewBox', '0 0 4000 3000');
 
-    // --- START: CRITICAL CHANGE ---
-    // Create a group element that will act as our viewport for panning and zooming.
-    // All transformations will be applied to this group.
     const viewportGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     viewportGroup.classList.add('chatgptree-viewport');
-    // --- END: CRITICAL CHANGE ---
 
-    // Calculate node positions within our static world
     calculateNodePositions();
 
-    // Draw connections and append them to the VIEWPORT GROUP
     treeData.nodes.forEach(node => {
       if (node.parentId) {
         const parent = treeData.nodes.get(node.parentId);
         if (parent) {
           const connection = createConnection(parent.x, parent.y, node.x, node.y);
-          viewportGroup.appendChild(connection); // Append to group
+          viewportGroup.appendChild(connection);
         }
       }
     });
 
-    // Draw nodes and append them to the VIEWPORT GROUP
     treeData.nodes.forEach(node => {
       const treeNode = createTreeNode({ text: node.text }, node.x, node.y, false);
-      viewportGroup.appendChild(treeNode); // Append to group
+      viewportGroup.appendChild(treeNode);
     });
 
-    // Append the viewport group to the SVG, and the SVG to the container
     svg.appendChild(viewportGroup);
     treeRoot.appendChild(svg);
 
-    // This part handles the event listener re-attachment safely
     const newContainer = treeContainer.cloneNode(true);
     treeContainer.replaceWith(newContainer);
 
-    // Get a reference to the NEW viewport group inside the new container
     const newViewportGroup = newContainer.querySelector('.chatgptree-viewport');
 
     if (newViewportGroup) {
-        // Pass the container and the viewport group to the panning logic
         initializePanningEvents(newContainer, newViewportGroup);
     }
   }
