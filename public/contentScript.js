@@ -1109,3 +1109,5 @@ function toggleTreeOverlay() {
   startUrlWatcher();
   waitForChat();
 })();
+
+//TODO: create fucntionality to regenrate tree for old chats so that you need persistent storage to save tree data

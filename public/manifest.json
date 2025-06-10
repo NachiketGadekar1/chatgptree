@@ -16,7 +16,8 @@
     "sidePanel",
     "storage",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "storage"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",
