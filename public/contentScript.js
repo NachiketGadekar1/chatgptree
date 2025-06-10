@@ -584,6 +584,8 @@ console.log('ChatGPTree content script starting...');
 
     let lastMouseX = 0;
     let lastMouseY = 0;
+    let panTicking = false;
+    const panSpeed = 2.0; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
 
     function startPan(evt) {
       if (evt.button !== 0) return;
@@ -599,12 +601,27 @@ console.log('ChatGPTree content script starting...');
     function pan(evt) {
       if (!isPanning) return;
       evt.preventDefault();
-      viewState.x += evt.clientX - lastMouseX;
-      viewState.y += evt.clientY - lastMouseY;
+      
+      // --- START: MODIFIED LINES ---
+      const deltaX = (evt.clientX - lastMouseX) * panSpeed;
+      const deltaY = (evt.clientY - lastMouseY) * panSpeed;
+      // --- END: MODIFIED LINES ---
+      
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
-      updateTransform();
+      
+      viewState.x += deltaX;
+      viewState.y += deltaY;
+
+      if (!panTicking) {
+        window.requestAnimationFrame(() => {
+          updateTransform();
+          panTicking = false;
+        });
+        panTicking = true;
+      }
     }
+
 
     function endPan() {
       if (!isPanning) return;
