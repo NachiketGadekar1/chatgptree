@@ -66,13 +66,18 @@ console.log('ChatGPTree content script starting...');
   function initialize() {
     console.log('Checking URL:', window.location.href);
     currentUrl = window.location.href;
-    
-    // Only run on chat pages
-    if (!/^https:\/\/(chatgpt\.com|chat\.openai\.com)\/c\//.test(currentUrl)) {
-      console.log('Not a chat page, cleaning up');
+
+    // Define what constitutes a valid chat page
+    const isSavedChat = /^https:\/\/(chatgpt\.com|chat\.openai\.com)\/c\//.test(currentUrl);
+    const isTempChat = currentUrl.includes('temporary-chat=true');
+
+    // If it's not a saved chat AND it's not a temporary chat, then it's not a page we should run on.
+    if (!isSavedChat && !isTempChat) {
+      console.log('Not a recognized chat page, cleaning up. URL:', currentUrl);
       cleanup();
       return;
     }
+    console.log(`Page recognized as: ${isSavedChat ? 'Saved Chat' : 'Temporary Chat'}`);
 
     // Reset tree data for new chat
     treeData.nodes = new Map();
