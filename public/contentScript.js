@@ -1,6 +1,3 @@
-// Placeholder for content script logic.
-// You can inject UI or interact with the ChatGPT page here.
-
 console.log('ChatGPTree content script starting...');
 
 (function addPromptJumpButtons() {
@@ -19,6 +16,14 @@ console.log('ChatGPTree content script starting...');
     branchStartId: null // Track where branching started when regenerate is clicked
   };
 
+  // Add a persistent state for the tree view's pan and zoom
+  let viewState = {
+    x: 0,
+    y: 0,
+    scale: 0.1, 
+    isInitialized: false // Flag to track if the initial position has been set
+  };
+
   // Add panning state variables at the top near other state variables
   let isPanning = false;
   let startPoint = { x: 0, y: 0 };
@@ -28,7 +33,6 @@ console.log('ChatGPTree content script starting...');
     if (initRetryCount >= MAX_INIT_RETRIES) {
       console.log('Max retries reached for current attempt');
       initRetryCount = 0;
-      // Don't give up entirely - keep watching for URL changes
       return;
     }
 
@@ -101,6 +105,8 @@ console.log('ChatGPTree content script starting...');
     treeData.branches.clear();
     treeData.activeBranch = [];
     treeData.branchStartId = null;
+    // Reset the view state for the next time the tree is opened
+    viewState = { x: 0, y: 0, scale: 0.75, isInitialized: false };
 
     // Clean up observer
     if (observer) {
@@ -543,48 +549,49 @@ console.log('ChatGPTree content script starting...');
   // Add panning functionality
   function initializePanningEvents(container, svg) {
     console.log('Initializing panning events');
-    let currentTransform = { x: 0, y: 0, scale: 1 };
-    let lastMouseX = 0;
-    let lastMouseY = 0;
 
-    // Set initial transform to center the view
-    const svgBounds = svg.getBoundingClientRect();
-    const containerBounds = container.getBoundingClientRect();
-    
-    // Calculate initial scale to fit content nicely
-    const viewBox = svg.viewBox.baseVal;
-    const scale = Math.min(
-      containerBounds.width / viewBox.width,
-      containerBounds.height / viewBox.height
-    ) * 0.8; // 80% of max scale for some padding
-    
-    // Calculate center position based on scaled dimensions
-    currentTransform.scale = scale;
-    const scaledWidth = viewBox.width * scale;
-    const scaledHeight = viewBox.height * scale;
-    currentTransform.x = (containerBounds.width - scaledWidth) / 2;
-    currentTransform.y = (containerBounds.height - scaledHeight) / 2;
-    
+    // The updateTransform function now reads from the persistent viewState
     function updateTransform() {
-      // Create transform matrix for both translation and scale
-      const matrix = `matrix(${currentTransform.scale}, 0, 0, ${currentTransform.scale}, ${currentTransform.x}, ${currentTransform.y})`;
+      const matrix = `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`;
       svg.setAttribute('transform', matrix);
     }
     
-    // Apply initial transform
-    console.log('Initial transform:', currentTransform);
+    // If this is the first time we're showing the tree, calculate a good starting position.
+    if (!viewState.isInitialized) {
+      console.log('Calculating initial view position...');
+      const containerBounds = container.getBoundingClientRect();
+      
+      // Find the root node to center the view on it
+      const rootNodeId = [...treeData.nodes.keys()][0];
+      const rootNode = treeData.nodes.get(rootNodeId);
+      
+      if (rootNode) {
+        // Center the view on the root node with the default scale
+        viewState.x = (containerBounds.width / 2) - (rootNode.x * viewState.scale);
+        viewState.y = (containerBounds.height / 2) - (rootNode.y * viewState.scale) - 50; // A little vertical offset
+      } else {
+        // Fallback if no root node is found
+        viewState.x = containerBounds.width / 2;
+        viewState.y = containerBounds.height / 2;
+      }
+      
+      viewState.isInitialized = true;
+    }
+
+    // Apply the current (initial or user-modified) transform
     updateTransform();
 
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
     function startPan(evt) {
-      if (evt.button !== 0) return; // Only handle left mouse button
-      
-      evt.preventDefault(); // Prevent text selection
+      if (evt.button !== 0) return;
+      evt.preventDefault();
       container.classList.add('grabbing');
       isPanning = true;
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
       
-      // Add event listeners for move and end
       document.addEventListener('mousemove', pan);
       document.addEventListener('mouseup', endPan);
     }
@@ -593,19 +600,16 @@ console.log('ChatGPTree content script starting...');
       if (!isPanning) return;
       evt.preventDefault();
       
-      // Calculate the distance moved
       const deltaX = evt.clientX - lastMouseX;
       const deltaY = evt.clientY - lastMouseY;
       
-      // Update the current position
-      currentTransform.x += deltaX;
-      currentTransform.y += deltaY;
+      // Modify the persistent viewState
+      viewState.x += deltaX;
+      viewState.y += deltaY;
       
-      // Store the current mouse position for next move
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
       
-      console.log('Panning:', { deltaX, deltaY, ...currentTransform });
       updateTransform();
     }
 
@@ -613,49 +617,39 @@ console.log('ChatGPTree content script starting...');
       if (!isPanning) return;
       container.classList.remove('grabbing');
       isPanning = false;
-      
-      // Remove event listeners
       document.removeEventListener('mousemove', pan);
       document.removeEventListener('mouseup', endPan);
     }
 
-    // Add zoom functionality with debug logs
     container.addEventListener('wheel', (evt) => {
       evt.preventDefault();
-      
       const delta = evt.deltaY;
-      const scaleChange = delta > 0 ? 0.9 : 1.1; // Scale down or up by 10%
-      const newScale = currentTransform.scale * scaleChange;
+      const scaleChange = delta > 0 ? 0.9 : 1.1;
+      const newScale = viewState.scale * scaleChange;
       
-      // Limit scale range
       if (newScale >= 0.1 && newScale <= 3) {
-        // Calculate mouse position relative to container
         const rect = container.getBoundingClientRect();
         const mouseX = evt.clientX - rect.left;
         const mouseY = evt.clientY - rect.top;
         
-        // Calculate point on SVG under mouse before scaling
-        const svgX = (mouseX - currentTransform.x) / currentTransform.scale;
-        const svgY = (mouseY - currentTransform.y) / currentTransform.scale;
+        const svgX = (mouseX - viewState.x) / viewState.scale;
+        const svgY = (mouseY - viewState.y) / viewState.scale;
         
-        // Scale from mouse position
-        currentTransform.scale = newScale;
-        currentTransform.x = mouseX - (svgX * newScale);
-        currentTransform.y = mouseY - (svgY * newScale);
+        // Modify the persistent viewState
+        viewState.scale = newScale;
+        viewState.x = mouseX - (svgX * newScale);
+        viewState.y = mouseY - (svgY * newScale);
         
         updateTransform();
       }
     }, { passive: false });
 
-    // Add initial mousedown listener
     container.addEventListener('mousedown', startPan);
 
-    // Update container styles to prevent selection
     container.style.overflow = 'hidden';
     container.style.userSelect = 'none';
-    container.style.webkitUserSelect = 'none';
-    container.style.msUserSelect = 'none';
   }
+  // --- END: MODIFIED FUNCTION ---
 
   function toggleTreeOverlay() {
     const overlay = document.querySelector('.chatgptree-overlay');
@@ -874,7 +868,7 @@ console.log('ChatGPTree content script starting...');
     positionNodes(rootNodeId, START_X, START_Y);
   }
 
-  
+
   function createTreeNode(prompt, x, y, isRoot = false) {
     const NODE_RADIUS = 35; // Increased radius for even bigger nodes
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
