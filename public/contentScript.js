@@ -7,9 +7,10 @@ console.log('ChatGPTree content script starting...');
   let initRetryCount = 0;
   let urlCheckInterval = null;
   const MAX_INIT_RETRIES = 10;
-
-  // Flag to identify if a chat is old and has no tree data.
-  let isLegacyChatWithoutTree = false;
+  // New state variables for persistence
+  let currentChatId = null;
+  let isChatTrackable = false;
+  let isNewlyCreatedChat = false; // Flag to identify a chat we just created.
   
   // Tree data structure
   let treeData = {
@@ -40,11 +41,16 @@ console.log('ChatGPTree content script starting...');
   // Expose the function to the global scope for console debugging
   window.logCurrentView = logCurrentView;
 
+  function getChatIdFromUrl() {
+    // Extracts the chat ID from a URL like https://chatgpt.com/c/xxxxxxxx-xxxx...
+    const match = window.location.href.match(/\/c\/([a-f0-9-]+)/);
+    return match ? match[1] : null;
+  }
+
   // Add panning state variables at the top near other state variables
   let isPanning = false;
   let startPoint = { x: 0, y: 0 };
   let viewOffset = { x: 0, y: 0 };
-
   function waitForChat() {
     if (initRetryCount >= MAX_INIT_RETRIES) {
       console.log('Max retries reached for current attempt');
@@ -54,8 +60,10 @@ console.log('ChatGPTree content script starting...');
 
     console.log('Attempting initialization, attempt:', initRetryCount + 1);
     const mainElement = document.querySelector('main');
+    const promptInput = document.getElementById('prompt-textarea');
     
-    if (!mainElement) {
+    // Check for the main container AND the prompt input, which exists on new and old chats.
+    if (!mainElement || !promptInput) {
       initRetryCount++;
       setTimeout(waitForChat, 500);
       return;
@@ -64,142 +72,77 @@ console.log('ChatGPTree content script starting...');
     console.log('Chat interface detected, initializing...');
     initRetryCount = 0;
     initialize();
-  }
+  }  function initialize() {    console.log('Checking URL:', window.location.href);
+    currentUrl = window.location.href;
+    currentChatId = getChatIdFromUrl();
 
-  function getChatId() {
-    const match = window.location.href.match(/^https:\/\/(chatgpt\.com|chat\.openai\.com)\/c\/([a-zA-Z0-9-]+)/);
-    return match ? match[2] : null;
-  }
-
-  async function saveTreeToStorage() {
-    const chatId = getChatId();
-    if (!chatId || isLegacyChatWithoutTree) {
-      return;
+    // Determine the chat type based on the flag from the watcher or the URL.
+    if (isNewlyCreatedChat) {
+      // The watcher told us this is a brand new chat.
+      isChatTrackable = true;
+      console.log('@@@@ CHAT TYPE DETECTED: Brand New Chat');
+      isNewlyCreatedChat = false; // Reset the flag, its job is done.
+    } else if (currentChatId) {
+      // No flag, but a chat ID exists. This is a genuinely pre-existing chat.
+      isChatTrackable = false; 
+      console.log('@@@@ CHAT TYPE DETECTED: Pre-existing Chat');
+    } else {
+      // No chat ID means it's a new session or a temporary chat.
+      isChatTrackable = true;
+      console.log('@@@@ CHAT TYPE DETECTED: New Session (No ID yet)');
     }
 
-    const serializableTree = {
-      nodes: Object.fromEntries(treeData.nodes),
-      branches: Object.fromEntries(treeData.branches),
-      activeBranch: treeData.activeBranch,
-      branchStartId: treeData.branchStartId,
-    };
+    // Reset tree data for new chat
+    treeData.nodes = new Map();
+    treeData.branches = new Map();
+    treeData.activeBranch = [];
+    treeData.branchStartId = null;
 
-    try {
-      await chrome.storage.local.set({ [`chatgptree-${chatId}`]: serializableTree });
-      console.log('ChatGPTree: Tree saved for chat', chatId);
-    } catch (error) {
-      console.error('ChatGPTree: Error saving tree to storage:', error);
+    if (!isInitialized) {
+      injectStyles();
+      setupObservers();
+      startUrlWatcher();
+      renderTreeButton();
+      createTreeOverlay();
+      isInitialized = true;
     }
-  }
 
-  async function loadTreeFromStorage(chatId) {
-    if (!chatId) return null;
-
-    try {
-      const data = await chrome.storage.local.get(`chatgptree-${chatId}`);
-      const storedTree = data[`chatgptree-${chatId}`];
-
-      if (storedTree && storedTree.nodes && Object.keys(storedTree.nodes).length > 0) {
-        treeData.nodes = new Map(Object.entries(storedTree.nodes));
-        treeData.branches = new Map(Object.entries(storedTree.branches || {}));
-        treeData.activeBranch = storedTree.activeBranch || [];
-        treeData.branchStartId = storedTree.branchStartId || null;
-        console.log('ChatGPTree: Tree loaded for chat', chatId);
-        return true;
-      }
-    } catch (error) {
-      console.error('ChatGPTree: Error loading tree from storage:', error);
-    }
-    console.log('ChatGPTree: No valid tree found in storage for chat', chatId);
-    return null;
-  }
-
-// --- CORRECTED INITIALIZE FUNCTION ---
-async function initialize() {
-  console.log('Checking URL:', window.location.href);
-  currentUrl = window.location.href;
-
-  const chatId = getChatId();
-  const isSavedChat = !!chatId;
-  const isTempChat = !isSavedChat;
-
-  // More robust check for valid pages
-  if (!isSavedChat && !currentUrl.startsWith('https://chatgpt.com/')) {
-    if (currentUrl !== "https://chatgpt.com/") {
-      console.log('Not a recognized chat page, cleaning up. URL:', currentUrl);
-      cleanup();
-      return;
-    }
-  }
-  console.log(`Page recognized as: ${isSavedChat ? 'Saved Chat' : 'Temporary Chat'}`);
-
-  // Reset state for the new page
-  treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
-  isLegacyChatWithoutTree = false;
-
-  if (!isInitialized) {
-    injectStyles();
-    setupObservers();
-    startUrlWatcher();
+    // Must re-render the button now that isChatTrackable is correctly set.
     renderTreeButton();
-    createTreeOverlay();
-    isInitialized = true;
-  }
 
-  const treeLoaded = await loadTreeFromStorage(chatId);
-
-  if (treeLoaded) {
-    // CASE 1: Chat with an existing tree. Not legacy.
-    isLegacyChatWithoutTree = false;
-    console.log('Tree loaded from storage. Initializing UI.');
+    console.log('Adding prompt jump buttons...');
     renderButtons();
-    updateTreeButtonState();
-  } else {
-    // CASE 2 & 3: No tree in storage. MUST WAIT to see if it's new or legacy.
-    console.log('No tree in storage. Waiting 1s to determine chat type...');
-    setTimeout(() => {
-      // FIX: If the tree has already been populated by the MutationObserver,
-      // this check is obsolete and should be ignored.
-      if (treeData.nodes.size > 0) {
-        console.log('Latent timeout fired, but tree already exists. Ignoring.');
-        return;
-      }
-
-      const prompts = getUserPrompts();
-      if (prompts.length > 0) {
-        // It's a legacy chat.
-        console.log('Prompts found after wait. This is a legacy chat.');
-        isLegacyChatWithoutTree = true;
-      } else {
-        // It's a new chat.
-        console.log('No prompts found after wait. This is a new chat.');
-        isLegacyChatWithoutTree = false;
-      }
-      // After determination, render UI elements with the correct state.
-      renderButtons(); 
-      updateTreeButtonState();
-    }, 1000); // Wait 1 second for the page to stabilize.
   }
-}
-
 
   function cleanup() {
     console.log('Running cleanup...');
+    // Clean up prompt jump stack
     let stack = document.querySelector('.chatgptree-prompt-jump-stack');
-    if (stack) stack.remove();
+    if (stack) {
+      console.log('Removing button stack');
+      stack.remove();
+    }
+
+    // Clean up tree visualization
     let treeBtn = document.querySelector('.chatgptree-tree-btn');
-    if (treeBtn) treeBtn.remove();
+    if (treeBtn) {
+      treeBtn.remove();
+    }
     let overlay = document.querySelector('.chatgptree-overlay');
-    if (overlay) overlay.remove();
+    if (overlay) {
+      overlay.remove();
+    }
     
+    // Clear tree data
     console.log('Clearing tree data');
     treeData.nodes.clear();
     treeData.branches.clear();
     treeData.activeBranch = [];
     treeData.branchStartId = null;
-    isLegacyChatWithoutTree = false;
+    // Reset the view state for the next time the tree is opened
     viewState = { x: 0, y: 0, scale: 0.75, isInitialized: false };
 
+    // Clean up observer
     if (observer) {
       console.log('Disconnecting observer');
       observer.disconnect();
@@ -207,25 +150,44 @@ async function initialize() {
     }
     isInitialized = false;
   }
-
   function startUrlWatcher() {
-    if (urlCheckInterval) clearInterval(urlCheckInterval);
+    // Clear any existing interval
+    if (urlCheckInterval) {
+      clearInterval(urlCheckInterval);
+    }    // Watch for URL changes persistently
     urlCheckInterval = setInterval(() => {
-      if (window.location.href !== currentUrl) {
-        console.log('URL changed from:', currentUrl, 'to:', window.location.href);
+      const newUrl = window.location.href;
+      if (newUrl !== currentUrl) {
+        console.log('URL changed from:', currentUrl);
+        console.log('URL changed to:', newUrl);
+
+        // Check if we are transitioning from a state with NO chat ID to one WITH a chat ID.
+        // This is the signature of a new chat being created.
+        const newUrlHasId = /\/c\//.test(newUrl);
+        if (!currentChatId && newUrlHasId) {
+          console.log('Watcher detected a newly created chat.');
+          isNewlyCreatedChat = true;
+        } else {
+          isNewlyCreatedChat = false;
+        }
+
         cleanup();
-        currentUrl = window.location.href;
+        currentUrl = newUrl;
+        // Reset retry count and start fresh
         initRetryCount = 0;
         waitForChat();
       }
     }, 1000);
 
+    // Ensure interval is cleared when page is unloaded
     window.addEventListener('unload', () => {
-      if (urlCheckInterval) clearInterval(urlCheckInterval);
+      if (urlCheckInterval) {
+        clearInterval(urlCheckInterval);
+      }
     });
   }
 
-  function injectStyles() {
+function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
       .chatgptree-prompt-jump-stack {
@@ -304,6 +266,7 @@ async function initialize() {
         color: #23272f;
         box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
+      /* Tree Visualization Styles */
       .chatgptree-tree-btn {
         position: fixed;
         top: 70px;
@@ -327,18 +290,20 @@ async function initialize() {
         justify-content: center;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      .chatgptree-tree-btn:hover,
+      }      .chatgptree-tree-btn:hover,
       .chatgptree-tree-btn.active {
         background: #6ee7b7;
         color: #23272f;
         box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
+      
       .chatgptree-tree-btn.disabled {
         opacity: 0.5;
         cursor: not-allowed;
-        pointer-events: none;
+        background: rgba(35, 39, 47, 0.9); /* Ensure it doesn't get hover styles */
+        color: #6ee7b7;
       }
+
       .chatgptree-overlay {
         position: fixed;
         top: 0;
@@ -368,7 +333,7 @@ async function initialize() {
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
-        text-shadow: none;
+        text-shadow: none; /* FIX: Explicitly remove glow/shadow */
       }
 
       .chatgptree-close-btn {
@@ -413,9 +378,6 @@ async function initialize() {
         -moz-user-select: none;
         -ms-user-select: none;
         touch-action: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
       }
 
       .chatgptree-tree-container.grabbing {
@@ -533,7 +495,7 @@ async function initialize() {
       }
     `;
     document.head.appendChild(style);
-  }
+}
 
   function getPromptPreview(prompt, maxLength = 50) {
     let text = prompt.textContent.trim();
@@ -544,6 +506,7 @@ async function initialize() {
   }
 
   function getUserPrompts() {
+    // Updated selectors for better prompt detection - using more reliable and valid selectors
     const selectors = [
       '[data-message-author-role="user"]',
       '.text-base [data-message-author-role="user"]',
@@ -553,8 +516,13 @@ async function initialize() {
     
     for (const selector of selectors) {
       const elements = document.querySelectorAll(selector);
-      if (elements.length > 0) return Array.from(elements);
+      console.log(`Trying selector "${selector}":`, elements.length, 'elements found');
+      if (elements.length > 0) {
+        return Array.from(elements);
+      }
     }
+    
+    console.log('No user prompts found with any selector');
     return [];
   }
 
@@ -587,18 +555,28 @@ async function initialize() {
     if (stack) stack.remove();
     
     const prompts = getUserPrompts();
-    console.log('Rendering buttons, found prompts:', prompts.length);
+    console.log('Found prompts:', prompts.length);
     
-    if (!isLegacyChatWithoutTree) {
-      updateTreeData(prompts);
+    // Always update tree data even with one prompt
+    updateTreeData(prompts);
+    
+    // Only show buttons for 2+ prompts
+    if (prompts.length < 2) {
+      console.log('Not enough prompts to show buttons');
+      return;
     }
-    
-    if (prompts.length < 2) return;
 
     stack = document.createElement('div');
     stack.className = 'chatgptree-prompt-jump-stack';
     
+    // --- FIX: Check if overlay is visible before showing the stack ---
+    const overlay = document.querySelector('.chatgptree-overlay');
+    if (overlay && overlay.classList.contains('visible')) {
+        stack.style.display = 'none';
+    }
+    
     prompts.forEach((prompt, i) => {
+      console.log('Creating button for prompt', i + 1);
       const btn = document.createElement('button');
       btn.className = 'chatgptree-prompt-jump-btn';
       
@@ -619,6 +597,7 @@ async function initialize() {
       
       btn.onclick = e => {
         e.preventDefault();
+        console.log('Clicking button', i + 1);
         scrollToPrompt(i);
       };
       if (isElementInViewport(prompt)) {
@@ -629,23 +608,26 @@ async function initialize() {
     
     document.body.appendChild(stack);
   }
-
   function renderTreeButton() {
     let treeBtn = document.querySelector('.chatgptree-tree-btn');
     if (!treeBtn) {
       treeBtn = document.createElement('button');
       treeBtn.className = 'chatgptree-tree-btn';
       treeBtn.textContent = 'T';
-      treeBtn.onclick = toggleTreeOverlay;
       document.body.appendChild(treeBtn);
     }
-    return treeBtn;
-  }
-
-  function updateTreeButtonState() {
-    const treeBtn = document.querySelector('.chatgptree-tree-btn');
-    if (treeBtn) {
-      treeBtn.classList.toggle('disabled', isLegacyChatWithoutTree);
+    
+    // Set button state based on whether the chat is trackable
+    if (isChatTrackable) {
+      treeBtn.disabled = false;
+      treeBtn.classList.remove('disabled');
+      treeBtn.onclick = toggleTreeOverlay;
+      treeBtn.setAttribute('title', 'Show conversation tree');
+    } else {
+      treeBtn.disabled = true;
+      treeBtn.classList.add('disabled');
+      treeBtn.onclick = null;
+      treeBtn.setAttribute('title', 'Tree view is not available for pre-existing chats');
     }
   }
 
@@ -662,15 +644,21 @@ async function initialize() {
         </div>
       `;
       document.body.appendChild(overlay);
-      
-      overlay.querySelector('.chatgptree-close-btn').onclick = toggleTreeOverlay;
+
+      // Attach listener to the new close button
+      const closeBtn = overlay.querySelector('.chatgptree-close-btn');
+      if (closeBtn) {
+          closeBtn.onclick = toggleTreeOverlay;
+      }
     }
     return overlay;
   }
 
+  // Add panning functionality
   function initializePanningEvents(container, viewportGroup) {
     console.log('Initializing panning events on viewport group');
 
+    // This function now applies the transform to the <g> element
     function updateTransform() {
       const matrix = `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`;
       viewportGroup.setAttribute('transform', matrix);
@@ -678,16 +666,21 @@ async function initialize() {
 
     if (!viewState.isInitialized) {
       console.log('Applying your custom default view...');
+      
+      // These are the exact coordinates 
       viewState.x = -10165.331819457246;
       viewState.y = -548.3256309102353;
       viewState.scale = 6.079802199016465;
+      
       viewState.isInitialized = true;
     }
 
     updateTransform();
 
-    let lastMouseX = 0, lastMouseY = 0, panTicking = false;
-    const panSpeed = 5.0;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let panTicking = false;
+    const panSpeed = 5.0; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
 
     function startPan(evt) {
       if (evt.button !== 0) return;
@@ -704,11 +697,15 @@ async function initialize() {
       if (!isPanning) return;
       evt.preventDefault();
       
-      viewState.x += (evt.clientX - lastMouseX) * panSpeed;
-      viewState.y += (evt.clientY - lastMouseY) * panSpeed;
+      const deltaX = (evt.clientX - lastMouseX) * panSpeed;
+      const deltaY = (evt.clientY - lastMouseY) * panSpeed;
+      
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
       
+      viewState.x += deltaX;
+      viewState.y += deltaY;
+
       if (!panTicking) {
         window.requestAnimationFrame(() => {
           updateTransform();
@@ -717,6 +714,7 @@ async function initialize() {
         panTicking = true;
       }
     }
+
 
     function endPan() {
       if (!isPanning) return;
@@ -728,10 +726,11 @@ async function initialize() {
 
     container.addEventListener('wheel', (evt) => {
       evt.preventDefault();
-      const scaleChange = evt.deltaY > 0 ? 0.9 : 1.1;
+      const delta = evt.deltaY;
+      const scaleChange = delta > 0 ? 0.9 : 1.1;
       const newScale = viewState.scale * scaleChange;
       
-      if (newScale >= 0.1 && newScale <= 10) {
+      if (newScale >= 0.1 && newScale <= 10) { // Increased max zoom to 10x
         const rect = container.getBoundingClientRect();
         const mouseX = evt.clientX - rect.left;
         const mouseY = evt.clientY - rect.top;
@@ -759,92 +758,65 @@ async function initialize() {
     }
   }
 
-  function showLegacyChatMessage() {
-    const treeContainer = document.querySelector('.chatgptree-tree-container');
-    if (treeContainer) {
-        // Clear any existing SVG tree
-        treeContainer.innerHTML = '';
-        // Add the message
-        const messageDiv = document.createElement('div');
-        messageDiv.style.cssText = 'color: white; text-align: center; font-family: sans-serif; padding: 40px; user-select: text;';
-        messageDiv.innerHTML = `
-            <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 12px;">Tree Not Available</h2>
-            <p style="font-size: 16px; line-height: 1.6; max-width: 450px; margin: 0 auto; opacity: 0.9;">
-                ChatGPTree cannot generate a tree for this conversation. Trees are built in real-time for new chats started while the extension is active.
-            </p>
-        `;
-        treeContainer.appendChild(messageDiv);
-        // Ensure panning cursor is not shown
-        treeContainer.style.cursor = 'default';
-    }
-  }
 
-  function toggleTreeOverlay() {
-      const overlay = document.querySelector('.chatgptree-overlay');
-      const treeBtn = document.querySelector('.chatgptree-tree-btn');
-      const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
-    
-      if (overlay) {
-        const isVisible = overlay.classList.toggle('visible');
-        const displayStyle = isVisible ? 'none' : 'flex';
-        if (treeBtn) {
-          treeBtn.classList.toggle('active', isVisible);
-          treeBtn.style.display = isVisible ? 'none' : 'flex'; // Hide tree button when overlay is open
-        }
-        if (promptStack) promptStack.style.display = displayStyle;
-    
-        if (isVisible) {
-          document.addEventListener('keydown', handleEscapeKey);
-          if (isLegacyChatWithoutTree) {
-            showLegacyChatMessage();
-          } else {
-            // Ensure the container is ready for the SVG and has a grab cursor
-            const treeContainer = overlay.querySelector('.chatgptree-tree-container');
-            if (treeContainer && !treeContainer.querySelector('.chatgptree-tree')) {
-              treeContainer.innerHTML = '<div class="chatgptree-tree"></div>';
-              treeContainer.style.cursor = 'grab'; // Restore grab cursor
-            }
-            updateTreeVisualization();
-          }
-        } else {
-          document.removeEventListener('keydown', handleEscapeKey);
-        }
+function toggleTreeOverlay() {
+    const overlay = document.querySelector('.chatgptree-overlay');
+    const treeBtn = document.querySelector('.chatgptree-tree-btn');
+    const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
+  
+    if (overlay) {
+      const isVisible = overlay.classList.toggle('visible');
+      
+      // --- FIX: Set display style to hide/show UI elements ---
+      const displayStyle = isVisible ? 'none' : 'flex';
+      if (treeBtn) {
+        treeBtn.classList.toggle('active', isVisible);
+        treeBtn.style.display = isVisible ? 'none' : 'flex';
       }
+      if (promptStack) {
+        promptStack.style.display = displayStyle;
+      }
+  
+      if (isVisible) {
+        // Add escape key listener ONLY when overlay is opened
+        document.addEventListener('keydown', handleEscapeKey);
+        updateTreeVisualization();
+      } else {
+        // Remove escape key listener ONLY when overlay is closed
+        document.removeEventListener('keydown', handleEscapeKey);
+      }
+    }
   }
   
   function setupObservers() {
+    // Monitor scroll events to update active button
     let scrollTimeout;
     window.addEventListener('scroll', () => {
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
         const prompts = getUserPrompts();
-        let activeIndex = -1; // Track the most visible prompt
         prompts.forEach((prompt, i) => {
-            if (isElementInViewport(prompt)) {
-                activeIndex = i; // Last one found in viewport will be the active one
-            }
-        });
-        document.querySelectorAll('.chatgptree-prompt-jump-btn').forEach((btn, i) => {
-            btn.classList.toggle('active', i === activeIndex);
+          if (isElementInViewport(prompt)) {
+            updateActiveButton(i);
+          }
         });
       }, 100);
     });
 
+    // Monitor regenerate button clicks
     document.addEventListener('click', (e) => {
-      // Use a more robust selector for the send/regenerate button
-      const regenerateBtn = e.target.closest('button[data-testid*="send-button"]');
-      if (regenerateBtn) {
-        // Find the last user prompt before the send/regenerate action
-        const turnElements = Array.from(document.querySelectorAll('[data-message-author-role]'));
-        const lastUserPrompt = turnElements.reverse().find(el => el.dataset.messageAuthorRole === 'user');
-        if (lastUserPrompt) {
-          const messageId = lastUserPrompt.dataset.messageId;
+      const sendBtn = e.target.closest('button.btn.relative.btn-primary');
+      if (sendBtn && sendBtn.textContent.includes('Send')) {
+        const promptElement = e.target.closest('[data-message-author-role="user"]');
+        if (promptElement) {
+          const messageId = promptElement.dataset.messageId;
           console.log('Branching from message:', messageId);
           treeData.branchStartId = messageId;
         }
       }
     });
 
+    // Observe chat changes
     const chatRoot = document.querySelector('main');
     if (!chatRoot) {
       console.log('Main element not found, will retry with URL watcher');
@@ -855,94 +827,91 @@ async function initialize() {
     
     observer = new MutationObserver((mutations) => {
       const hasRelevantChanges = mutations.some(mutation => 
-        mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0
+        mutation.addedNodes.length > 0 || 
+        mutation.removedNodes.length > 0 ||
+        (mutation.type === 'attributes' && mutation.attributeName === 'class')
       );
 
       if (hasRelevantChanges) {
-        console.log('Chat content changed, re-evaluating...');
+        console.log('Chat content changed, checking prompts...');
+        // Small delay to ensure DOM is settled
         setTimeout(() => {
-          renderButtons(); // This already calls updateTreeData
+          const prompts = getUserPrompts();
+          // We will update tree data regardless, but only show buttons for 2+
+          updateTreeData(prompts);
+          renderButtons();
+          // If the tree view is open, refresh it with new data
           const overlay = document.querySelector('.chatgptree-overlay');
-          if (overlay && overlay.classList.contains('visible') && !isLegacyChatWithoutTree) {
+          if (overlay && overlay.classList.contains('visible')) {
             updateTreeVisualization();
           }
-        }, 200);
+        }, 100);
       }
     });
 
-    observer.observe(chatRoot, { childList: true, subtree: true });
+    observer.observe(chatRoot, { 
+      childList: true, 
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'] 
+    });
   }
 
   function updateTreeData(prompts) {
-    let treeWasModified = false;
+    // Update tree data with new prompts
     prompts.forEach((prompt, i) => {
       const messageId = prompt.dataset.messageId;
       if (!treeData.nodes.has(messageId)) {
-        treeWasModified = true;
         const node = {
           messageId,
-          text: getPromptPreview(prompt, 30), // Shortened for node display
+          text: getPromptPreview(prompt, 20),
           parentId: null,
           children: [],
           x: 0,
           y: 0
         };
 
+        // If this is a branch node
         if (treeData.branchStartId) {
           node.parentId = treeData.branchStartId;
           const parentNode = treeData.nodes.get(treeData.branchStartId);
           if (parentNode) {
-            // Check if child already exists to avoid duplicates (e.g. from rapid DOM updates)
-            if (!parentNode.children.includes(messageId)) {
-                parentNode.children.push(messageId);
-            }
+            parentNode.children.push(messageId);
+            // Clear branch start since we've handled it
+            treeData.branchStartId = null;
           }
-          treeData.branchStartId = null; // Reset after use
         } else if (i > 0) {
-          // If no explicit branch start, assume sequential
-          const parentId = prompts[i - 1].dataset.messageId;
+          // Regular chain - parent is previous prompt
+          const prevPrompt = prompts[i - 1];
+          const parentId = prevPrompt.dataset.messageId;
           node.parentId = parentId;
           const parentNode = treeData.nodes.get(parentId);
           if (parentNode) {
-            // Check if child already exists
-            if (!parentNode.children.includes(messageId)) {
-                parentNode.children.push(messageId);
-            }
+            parentNode.children.push(messageId);
           }
         }
+
         treeData.nodes.set(messageId, node);
       }
     });
-
-    // If the tree data was changed, save it to storage.
-    if (treeWasModified) {
-      saveTreeToStorage();
-    }
   }
 
   function calculateNodePositions() {
-    const LEVEL_HEIGHT = 160, NODE_WIDTH = 200, SIBLING_GAP = 50;
-    const START_Y = 150, START_X = 2000; // Arbitrary large X to allow negative offsets
+    const LEVEL_HEIGHT = 160;    // Vertical distance between levels
+    const NODE_WIDTH = 200;      // The conceptual width of a single node
+    const SIBLING_GAP = 50;      // The minimum horizontal gap between sibling subtrees
+    const START_Y = 150;         // Give it a bit more top margin
+    const START_X = 2000;        // Center in our new 4000-width fixed viewBox
 
-    // Clear subtree widths before recalculating
-    treeData.nodes.forEach(node => delete node.subtreeWidth);
-
-    // Identify all nodes that have no parents, or whose parents are not in the current set of nodes.
-    // This helps identify true root(s) in case of partially loaded trees or initial state.
-    const allNodeIds = new Set(treeData.nodes.keys());
-    let potentialRootIds = [...treeData.nodes.values()]
-      .filter(node => node.parentId === null || !allNodeIds.has(node.parentId))
+    const rootNodeIds = [...treeData.nodes.values()]
+      .filter(node => node.parentId === null)
       .map(node => node.messageId);
-    
-    // Sort to ensure consistent root selection if multiple exist, e.g., by oldest message.
-    // For simplicity, if multiple roots, just pick the first one by messageId (which might be chronological).
-    potentialRootIds.sort();
 
-    if (potentialRootIds.length === 0) return;
-    
-    // For now, let's assume a single "main" root for layout purposes.
-    // In a more complex branching scenario, you might want to handle multiple independent trees.
-    const rootNodeId = potentialRootIds[0];
+    if (rootNodeIds.length === 0) {
+      console.log("No root node found to start positioning.");
+      return;
+    }
+    const rootNodeId = rootNodeIds[0];
 
     function calculateSubtreeWidths(nodeId) {
       const node = treeData.nodes.get(nodeId);
@@ -951,12 +920,8 @@ async function initialize() {
         node.subtreeWidth = NODE_WIDTH;
         return;
       }
-      // Ensure children are processed before calculating parent's width
       node.children.forEach(calculateSubtreeWidths);
-      let totalChildrenWidth = node.children.reduce((sum, childId) => {
-        const childNode = treeData.nodes.get(childId);
-        return sum + (childNode ? childNode.subtreeWidth : 0);
-      }, 0);
+      let totalChildrenWidth = node.children.reduce((sum, childId) => sum + treeData.nodes.get(childId).subtreeWidth, 0);
       totalChildrenWidth += (node.children.length - 1) * SIBLING_GAP;
       node.subtreeWidth = Math.max(NODE_WIDTH, totalChildrenWidth);
     }
@@ -968,19 +933,13 @@ async function initialize() {
         node.y = y;
         if (node.children.length === 0) return;
 
-        let totalChildrenWidth = node.children.reduce((sum, childId) => {
-            const childNode = treeData.nodes.get(childId);
-            return sum + (childNode ? childNode.subtreeWidth : 0);
-        }, 0);
+        let totalChildrenWidth = node.children.reduce((sum, childId) => sum + treeData.nodes.get(childId).subtreeWidth, 0);
         totalChildrenWidth += (node.children.length - 1) * SIBLING_GAP;
         
         let currentX = x - totalChildrenWidth / 2;
         const childY = y + LEVEL_HEIGHT;
 
-        // Sort children by messageId to ensure consistent horizontal positioning
-        const sortedChildren = [...node.children].sort(); 
-
-        sortedChildren.forEach(childId => {
+        node.children.forEach(childId => {
             const childNode = treeData.nodes.get(childId);
             if(childNode) {
                 const childX = currentX + childNode.subtreeWidth / 2;
@@ -1001,15 +960,23 @@ async function initialize() {
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
 
+    const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    shadow.setAttribute('r', NODE_RADIUS.toString());
+    shadow.setAttribute('fill', 'rgba(0,0,0,0.1)');
+    shadow.setAttribute('transform', 'translate(3, 3)');
+
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('r', NODE_RADIUS.toString());
     circle.classList.add('chatgptree-node-circle');
 
-    // This gradient declaration will be problematic if not in defs and duplicated for every node.
-    // However, the `updateTreeVisualization` function correctly moves it to `defs`.
-    // So, here we'll just prepare the circle to use a gradient by ID.
-    // The actual gradient elements will be created in `updateTreeVisualization`.
-    circle.setAttribute('fill', `url(#gradient-${prompt.messageId})`); // Reference by ID
+    const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+    const id = `gradient-${Math.random().toString(36).substr(2, 9)}`;
+    gradient.setAttribute('id', id);
+    gradient.innerHTML = `
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#90cdf4"/>
+    `;
+    circle.setAttribute('fill', `url(#${id})`);
 
     const textBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     textBg.classList.add('chatgptree-node-text-bg');
@@ -1051,31 +1018,31 @@ async function initialize() {
     
     const HOVER_MAX_LENGTH = 40;
     const words = prompt.text.split(' ');
-    let hoverLines = [''], lineIdx = 0;
+    let hoverLines = [''];
+    let lineIdx = 0;
     words.forEach(word => {
-      if (hoverLines[lineIdx].length + word.length + 1 > HOVER_MAX_LENGTH && hoverLines[lineIdx].length > 0) {
+      if ((hoverLines[lineIdx] + ' ' + word).length > HOVER_MAX_LENGTH) {
         lineIdx++;
-        hoverLines[lineIdx] = word;
-      } else {
-        hoverLines[lineIdx] = (hoverLines[lineIdx] + ' ' + word).trim();
+        hoverLines[lineIdx] = '';
       }
+      hoverLines[lineIdx] = (hoverLines[lineIdx] + ' ' + word).trim();
     });
 
     hoverLines.forEach((line, i) => {
       const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
       tspan.setAttribute('x', '0');
-      const initialDy = -(hoverLines.length - 1) * 0.7; 
-      tspan.setAttribute('dy', i === 0 ? `${initialDy}em` : '1.4em');
+      tspan.setAttribute('dy', i === 0 ? '-1.2em' : '1.4em');
       tspan.textContent = line;
       fullText.appendChild(tspan);
     });
 
-    const padding = 12, lineHeight = 20;
-    const boxWidth = Math.min(400, Math.max(100, ...hoverLines.map(l => l.length * 8)) + padding * 2);
+    const padding = 12;
+    const lineHeight = 20;
+    const boxWidth = Math.min(400, Math.max(...hoverLines.map(l => l.length * 8)));
     const boxHeight = hoverLines.length * lineHeight + padding * 2;
     
     fullTextBg.setAttribute('x', -boxWidth/2);
-    fullTextBg.setAttribute('y', -(boxHeight/2));
+    fullTextBg.setAttribute('y', -(boxHeight/2 + lineHeight/2));
     fullTextBg.setAttribute('width', boxWidth);
     fullTextBg.setAttribute('height', boxHeight);
     
@@ -1099,9 +1066,9 @@ async function initialize() {
     node.onmouseover = showFullText;
     node.onmouseout = hideFullText;
 
+    node.appendChild(shadow);
     node.appendChild(circle);
-    // Do NOT append gradient here, it should be in <defs>
-    
+    node.appendChild(gradient);
     node.appendChild(textBg);
     node.appendChild(text);
     node.appendChild(fullTextBg);
@@ -1113,11 +1080,16 @@ async function initialize() {
   function createConnection(x1, y1, x2, y2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('chatgptree-node-connection');
-    const NODE_RADIUS = 35, VERTICAL_OFFSET = 50; 
+    const NODE_RADIUS = 35; 
+    const VERTICAL_OFFSET = 50; 
     
-    const startX = x1, startY = y1 + NODE_RADIUS;
-    const endX = x2, endY = y2 - NODE_RADIUS;
-    const cp1Y = startY + VERTICAL_OFFSET, cp2Y = endY - VERTICAL_OFFSET;
+    const startX = x1;
+    const startY = y1 + NODE_RADIUS;
+    const endX = x2;
+    const endY = y2 - NODE_RADIUS;
+    
+    const cp1Y = startY + VERTICAL_OFFSET;
+    const cp2Y = endY - VERTICAL_OFFSET;
 
     const d = `M ${startX} ${startY} C ${startX} ${cp1Y}, ${endX} ${cp2Y}, ${endX} ${endY}`;
 
@@ -1132,40 +1104,19 @@ async function initialize() {
     const treeContainer = overlay.querySelector('.chatgptree-tree-container');
     if (!treeContainer) return;
 
-    let finalTreeRoot = treeContainer.querySelector('.chatgptree-tree');
-    if (!finalTreeRoot) {
-        treeContainer.innerHTML = '<div class="chatgptree-tree"></div>';
-        finalTreeRoot = treeContainer.querySelector('.chatgptree-tree');
-        treeContainer.style.cursor = 'grab'; 
-    }
-    if (!finalTreeRoot) return; 
-
-    finalTreeRoot.innerHTML = ''; // Clear previous SVG content
+    const treeRoot = treeContainer.querySelector('.chatgptree-tree');
+    if (!treeRoot) return;
+    treeRoot.innerHTML = '';
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
-    svg.setAttribute('viewBox', '0 0 4000 3000'); 
+    svg.setAttribute('viewBox', '0 0 4000 3000');
 
     const viewportGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     viewportGroup.classList.add('chatgptree-viewport');
 
     calculateNodePositions();
-
-    // Append gradients to defs
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    treeData.nodes.forEach(node => {
-        const gradientId = `gradient-${node.messageId}`; // Unique ID for each node's gradient
-        const gradient = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
-        gradient.setAttribute('id', gradientId);
-        gradient.innerHTML = `
-          <stop offset="0%" style="stop-color:#ffffff"/>
-          <stop offset="100%" style="stop-color:#90cdf4"/>
-        `;
-        defs.appendChild(gradient);
-    });
-    svg.appendChild(defs);
-
 
     treeData.nodes.forEach(node => {
       if (node.parentId) {
@@ -1178,17 +1129,25 @@ async function initialize() {
     });
 
     treeData.nodes.forEach(node => {
-      const treeNode = createTreeNode({ text: node.text, messageId: node.messageId }, node.x, node.y, false);
+      const treeNode = createTreeNode({ text: node.text }, node.x, node.y, false);
       viewportGroup.appendChild(treeNode);
     });
 
     svg.appendChild(viewportGroup);
-    finalTreeRoot.appendChild(svg);
+    treeRoot.appendChild(svg);
 
-    initializePanningEvents(treeContainer, viewportGroup);
+    const newContainer = treeContainer.cloneNode(true);
+    treeContainer.replaceWith(newContainer);
+
+    const newViewportGroup = newContainer.querySelector('.chatgptree-viewport');
+
+    if (newViewportGroup) {
+        initializePanningEvents(newContainer, newViewportGroup);
+    }
   }
-  
   // Start everything
   startUrlWatcher();
   waitForChat();
+
 })();
+
