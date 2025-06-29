@@ -11,7 +11,87 @@ console.log('ChatGPTree content script starting...');
   let currentChatId = null;
   let isChatTrackable = false;
   let isNewlyCreatedChat = false; // Flag to identify a chat we just created.
+  let autosaveInterval = null;
+
+  // =================================================================
+// NEW: Storage Helper Functions
+// =================================================================
+
+/**
+ * Serializes the treeData object so it can be stored as JSON.
+ * Specifically converts Map objects to Arrays.
+ * @param {object} treeDataObject - The live treeData state object.
+ * @returns {object} A JSON-serializable version of the tree data.
+ */
+function serializeTreeForStorage(treeDataObject) {
+  if (!treeDataObject) return null;
+  return {
+    nodes: Array.from(treeDataObject.nodes.entries()),
+    branches: Array.from(treeDataObject.branches.entries()),
+    // These are already serializable
+    activeBranch: treeDataObject.activeBranch,
+    branchStartId: treeDataObject.branchStartId,
+  };
+}
+
+/**
+ * Deserializes data from storage back into the live treeData format.
+ * Specifically converts Arrays back to Map objects.
+ * @param {object} storedData - The JSON object retrieved from storage.
+ * @returns {object} The live treeData state object.
+ */
+function deserializeTreeFromStorage(storedData) {
+  if (!storedData) return null;
+  return {
+    nodes: new Map(storedData.nodes || []),
+    branches: new Map(storedData.branches || []),
+    activeBranch: storedData.activeBranch || [],
+    branchStartId: storedData.branchStartId || null,
+  };
+}
+
+/**
+ * Saves the current conversation's tree to chrome.storage.local.
+ * @param {string} chatId - The ID of the chat to save.
+ * @param {object} treeDataObject - The live treeData state object.
+ */
+async function saveTreeToStorage(chatId, treeDataObject) {
+  if (!chatId || !treeDataObject || treeDataObject.nodes.size === 0) {
+    // Don't save empty or invalid trees
+    return;
+  }
   
+  try {
+    const serializableTree = serializeTreeForStorage(treeDataObject);
+    await chrome.storage.local.set({ [chatId]: serializableTree });
+    console.log(`Saved tree for chat ID: ${chatId}`);
+  } catch (error) {
+    console.error('Error saving tree to storage:', error);
+  }
+}
+
+/**
+ * Loads a conversation's tree from chrome.storage.local.
+ * @param {string} chatId - The ID of the chat to load.
+ * @returns {Promise<object|null>} A promise that resolves to the deserialized
+ *   treeData object, or null if not found.
+ */
+async function loadTreeFromStorage(chatId) {
+  if (!chatId) return null;
+
+  try {
+    const storageResult = await chrome.storage.local.get(chatId);
+    if (storageResult && storageResult[chatId]) {
+      console.log(`Found saved tree in storage for chat ID: ${chatId}`);
+      return deserializeTreeFromStorage(storageResult[chatId]);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error loading tree from storage:', error);
+    return null;
+  }
+}
+
   // Tree data structure
   let treeData = {
     nodes: new Map(), // messageId -> { messageId, text, parentId, x, y, children: [] }
@@ -53,7 +133,7 @@ console.log('ChatGPTree content script starting...');
   let viewOffset = { x: 0, y: 0 };
 
   // Wait for the chat interface to load
-  function waitForChat() {
+  async function waitForChat() {
     if (initRetryCount >= MAX_INIT_RETRIES) {
       console.log('Max retries reached for current attempt');
       initRetryCount = 0;
@@ -64,93 +144,123 @@ console.log('ChatGPTree content script starting...');
     const mainElement = document.querySelector('main');
     const promptInput = document.getElementById('prompt-textarea');
     
-    // Check for the main container AND the prompt input, which exists on new and old chats.
     if (!mainElement || !promptInput) {
       initRetryCount++;
-      setTimeout(waitForChat, 500);
+      // Use a promise-based delay instead of just setTimeout
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitForChat();
       return;
     }
 
     console.log('Chat interface detected, initializing...');
     initRetryCount = 0;
-    initialize();
+    // Await the asynchronous initialization
+    await initialize();
   }
-  
-  function initialize() {    
-    console.log('Checking URL:', window.location.href);
-    currentUrl = window.location.href;
-    currentChatId = getChatIdFromUrl();
 
-    // Determine the chat type based on the flag from the watcher or the URL.
-    if (isNewlyCreatedChat) {
-      // The watcher told us this is a brand new chat.
-      isChatTrackable = true;
-      console.log('@@@@ CHAT TYPE DETECTED: Brand New Chat');
-      isNewlyCreatedChat = false; // Reset the flag, its job is done.
-    } else if (currentChatId) {
-      // No flag, but a chat ID exists. This is a genuinely pre-existing chat.
-      isChatTrackable = false; 
-      console.log('@@@@ CHAT TYPE DETECTED: Pre-existing Chat');
-    } else {
-      // No chat ID means it's a new session or a temporary chat.
-      isChatTrackable = true;
-      console.log('@@@@ CHAT TYPE DETECTED: New Session (No ID yet)');
-    }
+  // MODIFIED to be async and include loading logic
+  async function initialize() {    
+      console.log('Checking URL:', window.location.href);
+      currentUrl = window.location.href;
+      currentChatId = getChatIdFromUrl();
 
-    // Reset tree data for new chat
-    treeData.nodes = new Map();
-    treeData.branches = new Map();
-    treeData.activeBranch = [];
-    treeData.branchStartId = null;
+      // Stop any previous autosave interval
+      if (autosaveInterval) {
+        clearInterval(autosaveInterval);
+        autosaveInterval = null;
+      }
 
-    if (!isInitialized) {
-      injectStyles();
-      setupObservers();
-      // startUrlWatcher();
+      // --- NEW LOADING LOGIC ---
+      if (isNewlyCreatedChat) {
+        console.log('@@@@ CHAT TYPE DETECTED: Brand New Chat');
+        isChatTrackable = true;
+        isNewlyCreatedChat = false; // Reset the flag
+      } else if (currentChatId) {
+        // It's a pre-existing chat. Try to load it from storage.
+        const savedTree = await loadTreeFromStorage(currentChatId);
+        if (savedTree) {
+          treeData = savedTree;
+          isChatTrackable = true;
+          console.log('@@@@ CHAT TYPE DETECTED: Pre-existing Chat (Loaded from Storage)');
+        } else {
+          isChatTrackable = false;
+          console.log('@@@@ CHAT TYPE DETECTED: Pre-existing Chat (Not in Storage)');
+        }
+      } else {
+        // On the home page, not a real chat yet.
+        isChatTrackable = true; // Trackable if it becomes a new chat.
+        console.log('@@@@ CHAT TYPE DETECTED: New Session (No ID yet)');
+      }
+      // --- END OF NEW LOGIC ---
+
+      // Reset tree data ONLY if the chat is not trackable from a loaded tree
+      if (!isChatTrackable || isNewlyCreatedChat || !currentChatId) {
+          treeData = {
+            nodes: new Map(),
+            branches: new Map(),
+            activeBranch: [],
+            branchStartId: null
+          };
+      }
+
+      if (!isInitialized) {
+        injectStyles();
+        setupObservers();
+        // setupLifecycleManager(); // This should be called only once at the bottom
+        renderTreeButton();
+        createTreeOverlay();
+        isInitialized = true;
+      }
+
       renderTreeButton();
-      createTreeOverlay();
-      isInitialized = true;
-    }
+      console.log('Adding prompt jump buttons...');
+      renderButtons();
 
-    // Must re-render the button now that isChatTrackable is correctly set.
-    renderTreeButton();
-
-    console.log('Adding prompt jump buttons...');
-    renderButtons();
+      // Start autosave if the chat is trackable and has an ID
+      if (isChatTrackable && currentChatId) {
+          autosaveInterval = setInterval(() => {
+              saveTreeToStorage(currentChatId, treeData);
+          }, 5000); // Autosave every 5 seconds
+          console.log('Autosave interval started.');
+      }
   }
 
-  // Cleanup function to reset the state
-  function cleanup() {
+  // MODIFIED to perform a final save before cleaning up.
+  async function cleanup() {
     console.log('Running cleanup...');
-    // Clean up prompt jump stack
+
+    // --- NEW: Final save logic ---
+    if (isChatTrackable && currentChatId) {
+      console.log('Performing final save before cleanup...');
+      await saveTreeToStorage(currentChatId, treeData);
+    }
+    // ---
+
+    // Stop the autosave interval
+    if (autosaveInterval) {
+      clearInterval(autosaveInterval);
+      autosaveInterval = null;
+      console.log('Autosave interval stopped.');
+    }
+
+    // ... (the rest of the cleanup function remains the same) ...
     let stack = document.querySelector('.chatgptree-prompt-jump-stack');
     if (stack) {
-      console.log('Removing button stack');
       stack.remove();
     }
-
-    // Clean up tree visualization
+    // ... etc. (keep all your existing cleanup code here) ...
     let treeBtn = document.querySelector('.chatgptree-tree-btn');
-    if (treeBtn) {
-      treeBtn.remove();
-    }
+    if (treeBtn) treeBtn.remove();
     let overlay = document.querySelector('.chatgptree-overlay');
-    if (overlay) {
-      overlay.remove();
-    }
+    if (overlay) overlay.remove();
     
-    // Clear tree data
-    console.log('Clearing tree data');
     treeData.nodes.clear();
     treeData.branches.clear();
     treeData.activeBranch = [];
     treeData.branchStartId = null;
-    // Reset the view state for the next time the tree is opened
     viewState = { x: 0, y: 0, scale: 0.75, isInitialized: false };
 
-    // Clean up observer
     if (observer) {
-      console.log('Disconnecting observer');
       observer.disconnect();
       observer = null;
     }
