@@ -51,6 +51,8 @@ console.log('ChatGPTree content script starting...');
   let isPanning = false;
   let startPoint = { x: 0, y: 0 };
   let viewOffset = { x: 0, y: 0 };
+
+  // Wait for the chat interface to load
   function waitForChat() {
     if (initRetryCount >= MAX_INIT_RETRIES) {
       console.log('Max retries reached for current attempt');
@@ -72,7 +74,10 @@ console.log('ChatGPTree content script starting...');
     console.log('Chat interface detected, initializing...');
     initRetryCount = 0;
     initialize();
-  }  function initialize() {    console.log('Checking URL:', window.location.href);
+  }
+  
+  function initialize() {    
+    console.log('Checking URL:', window.location.href);
     currentUrl = window.location.href;
     currentChatId = getChatIdFromUrl();
 
@@ -101,7 +106,7 @@ console.log('ChatGPTree content script starting...');
     if (!isInitialized) {
       injectStyles();
       setupObservers();
-      startUrlWatcher();
+      // startUrlWatcher();
       renderTreeButton();
       createTreeOverlay();
       isInitialized = true;
@@ -114,6 +119,7 @@ console.log('ChatGPTree content script starting...');
     renderButtons();
   }
 
+  // Cleanup function to reset the state
   function cleanup() {
     console.log('Running cleanup...');
     // Clean up prompt jump stack
@@ -150,44 +156,98 @@ console.log('ChatGPTree content script starting...');
     }
     isInitialized = false;
   }
-  function startUrlWatcher() {
-    // Clear any existing interval
-    if (urlCheckInterval) {
-      clearInterval(urlCheckInterval);
-    }    // Watch for URL changes persistently
-    urlCheckInterval = setInterval(() => {
-      const newUrl = window.location.href;
-      if (newUrl !== currentUrl) {
-        console.log('URL changed from:', currentUrl);
-        console.log('URL changed to:', newUrl);
 
-        // Check if we are transitioning from a state with NO chat ID to one WITH a chat ID.
-        // This is the signature of a new chat being created.
-        const newUrlHasId = /\/c\//.test(newUrl);
-        if (!currentChatId && newUrlHasId) {
-          console.log('Watcher detected a newly created chat.');
-          isNewlyCreatedChat = true;
+
+  // =================================================================
+  // REPLACEMENT FOR startUrlWatcher / setupLifecycleManager
+  // This version uses a robust, lightweight polling loop with
+  // requestAnimationFrame for maximum compatibility and efficiency.
+  // =================================================================
+  function setupLifecycleManager() {
+    // --- State for the new detection logic ---
+    let isCurrentlyOnNewChatPage = false;
+    let lastCheckedUrl = window.location.href; // Start with the current URL
+
+    /**
+     * This function is called by the event listeners at the exact moment
+     * the user submits the first prompt on a new chat page.
+     */
+    function onNewChatCreated() {
+      isNewlyCreatedChat = true;
+      console.log('Lifecycle Manager: Detected new chat creation action. Flag set.');
+    }
+
+    /**
+     * Handles clicks on the Send or Dictate buttons.
+     * @param {MouseEvent} event
+     */
+    function handleMouseClick(event) {
+      if (!isCurrentlyOnNewChatPage) return;
+      const sendButton = event.target.closest('[data-testid="send-button"]');
+      if (sendButton) {
+        onNewChatCreated();
+      }
+    }
+
+    /**
+     * Handles the Enter key press in the prompt textarea.
+     * @param {KeyboardEvent} event
+     */
+    function handleKeyPress(event) {
+      if (!isCurrentlyOnNewChatPage) return;
+      if (event.key === 'Enter' && !event.shiftKey && event.target.id === 'prompt-textarea') {
+        onNewChatCreated();
+      }
+    }
+
+    /**
+     * Determines the page's state and updates the proactive listeners.
+     */
+    function checkPageType() {
+        const pathname = window.location.pathname;
+        if (pathname.startsWith('/c/')) {
+            isCurrentlyOnNewChatPage = false;
         } else {
-          isNewlyCreatedChat = false;
+            isCurrentlyOnNewChatPage = true;
+        }
+    }
+    
+    // --- The Main Polling Loop ---
+    function urlPollingLoop() {
+        const currentUrl = window.location.href;
+
+        if (currentUrl !== lastCheckedUrl) {
+            console.log("\nLifecycle Manager: URL change DETECTED.");
+            console.log("    FROM:", lastCheckedUrl);
+            console.log("    TO:  ", currentUrl);
+
+            // This is the master function that runs the entire teardown and setup cycle.
+            cleanup();
+            initRetryCount = 0;
+            waitForChat();
+
+            // Update state for the next check
+            lastCheckedUrl = currentUrl;
+            checkPageType();
         }
 
-        cleanup();
-        currentUrl = newUrl;
-        // Reset retry count and start fresh
-        initRetryCount = 0;
-        waitForChat();
-      }
-    }, 1000);
+        // Schedule the next check on the next animation frame
+        requestAnimationFrame(urlPollingLoop);
+    }
 
-    // Ensure interval is cleared when page is unloaded
-    window.addEventListener('unload', () => {
-      if (urlCheckInterval) {
-        clearInterval(urlCheckInterval);
-      }
-    });
+    // --- Setup Proactive Event Listeners ---
+    document.body.addEventListener('click', handleMouseClick, true);
+    document.body.addEventListener('keydown', handleKeyPress, true);
+
+    // --- Initial Run ---
+    checkPageType();
+    
+    // --- Start the watcher ---
+    // This starts the continuous, efficient polling.
+    urlPollingLoop();
   }
 
-function injectStyles() {
+  function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
       .chatgptree-prompt-jump-stack {
@@ -759,7 +819,7 @@ function injectStyles() {
   }
 
 
-function toggleTreeOverlay() {
+  function toggleTreeOverlay() {
     const overlay = document.querySelector('.chatgptree-overlay');
     const treeBtn = document.querySelector('.chatgptree-tree-btn');
     const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
@@ -1145,9 +1205,9 @@ function toggleTreeOverlay() {
         initializePanningEvents(newContainer, newViewportGroup);
     }
   }
+
   // Start everything
-  startUrlWatcher();
+  setupLifecycleManager();
   waitForChat();
 
 })();
-
