@@ -7,11 +7,11 @@ console.log('ChatGPTree content script starting...');
   let initRetryCount = 0;
   let urlCheckInterval = null;
   const MAX_INIT_RETRIES = 10;
-  // New state variables for persistence
   let currentChatId = null;
   let isChatTrackable = false;
-  let isNewlyCreatedChat = false; // Flag to identify a chat we just created.
+  let isNewlyCreatedChat = false;
   let autosaveInterval = null;
+  let hasCreatedRootButton = false;
 
   // =================================================================
 // NEW: Storage Helper Functions
@@ -226,7 +226,7 @@ async function loadTreeFromStorage(chatId) {
       }
   }
 
-  // MODIFIED to perform a final save before cleaning up.
+  // MODIFIED to perform a final save and reset the new flag.
   async function cleanup() {
     console.log('Running cleanup...');
 
@@ -260,6 +260,8 @@ async function loadTreeFromStorage(chatId) {
     treeData.activeBranch = [];
     treeData.branchStartId = null;
     viewState = { x: 0, y: 0, scale: 0.75, isInitialized: false };
+    
+    hasCreatedRootButton = false; // <<< ADD THIS LINE TO RESET THE FLAG
 
     if (observer) {
       observer.disconnect();
@@ -803,45 +805,76 @@ async function loadTreeFromStorage(chatId) {
   }
 
 // =================================================================
-// <<< MODIFICATION START: Updated function to replace edit buttons >>>
+// <<< MODIFICATION START: Updated function using a state flag >>>
 // =================================================================
 function replaceEditMessageButtons() {
-    // Colors from the jump buttons' hover state
-    const backgroundColor = '#6ee7b7';
-    const textColor = '#23272f'; // Black/dark gray
+    // Define colors for both states
+    const enabledBackgroundColor = '#6ee7b7';
+    const enabledTextColor = '#23272f';
+    const disabledBackgroundColor = '#d1d5db'; // Muted gray
+    const disabledTextColor = '#6b7280';    // Darker gray text
 
-    // Find all potential buttons that haven't been modified yet
+    // Use the original, more robust selector to find new buttons.
     const editButtons = document.querySelectorAll('button[aria-label="Edit message"]:not([data-chatgptree-modified])');
 
-    editButtons.forEach(button => {
+    editButtons.forEach((button) => {
         // Mark as modified to prevent re-processing
         button.setAttribute('data-chatgptree-modified', 'true');
         
-        // --- Tooltip and Accessibility ---
-        button.setAttribute('title', ''); // Explicitly remove the hover tooltip
-        button.setAttribute('aria-label', 'Create a branch here');
-
-        // --- Apply new styles to the button itself ---
-        button.style.backgroundColor = backgroundColor;
-        button.style.borderRadius = '18px'; // Make it rounder, like a pill
-        button.style.border = 'none'; // Remove any default border
-        
         // Remove original hover effect to avoid color conflicts
         button.classList.remove('hover:bg-token-bg-secondary');
+        button.style.border = 'none'; // Remove any default border
 
         const innerSpan = button.querySelector('span');
-        if (innerSpan) {
-            // Adjust layout classes to fit text content
-            innerSpan.classList.remove('w-8', 'justify-center');
-            innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
 
-            // --- Set new content and text styles ---
-            innerSpan.style.color = textColor; // Set text to black
-            innerSpan.style.fontSize = '14px';
-            innerSpan.style.fontWeight = '500';
-            innerSpan.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
+        // --- NEW LOGIC: Use the state flag to determine button type ---
+        if (!hasCreatedRootButton) {
+            // --- This is the FIRST button found in this chat session. Make it the root. ---
+            
+            // Tooltip and Accessibility
+            button.setAttribute('title', 'Cannot create a branch from the root message.');
+            button.setAttribute('aria-label', 'Root message, cannot create a branch.');
 
-            innerSpan.innerHTML = '🌳 Create a branch here';
+            // Apply disabled styles
+            button.style.backgroundColor = disabledBackgroundColor;
+            button.style.borderRadius = '18px';
+            button.style.opacity = '0.7';
+            button.style.cursor = 'not-allowed';
+            button.style.pointerEvents = 'none'; // Make it unclickable
+
+            if (innerSpan) {
+                innerSpan.classList.remove('w-8', 'justify-center');
+                innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
+                innerSpan.style.color = disabledTextColor;
+                innerSpan.style.fontSize = '14px';
+                innerSpan.style.fontWeight = '500';
+                innerSpan.style.whiteSpace = 'nowrap';
+                innerSpan.innerHTML = '🌳 Root Message'; 
+            }
+            
+            // Set the flag to true so this block never runs again for this chat
+            hasCreatedRootButton = true;
+
+        } else {
+            // --- The root button has already been created. All others are branch buttons. ---
+            
+            // Tooltip and Accessibility
+            button.setAttribute('title', 'Create a branch here');
+            button.setAttribute('aria-label', 'Create a branch here');
+
+            // Apply enabled styles
+            button.style.backgroundColor = enabledBackgroundColor;
+            button.style.borderRadius = '18px';
+
+            if (innerSpan) {
+                innerSpan.classList.remove('w-8', 'justify-center');
+                innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
+                innerSpan.style.color = enabledTextColor;
+                innerSpan.style.fontSize = '14px';
+                innerSpan.style.fontWeight = '500';
+                innerSpan.style.whiteSpace = 'nowrap';
+                innerSpan.innerHTML = '🌳 Create a branch here';
+            }
         }
     });
 }
