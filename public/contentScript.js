@@ -215,6 +215,7 @@ async function loadTreeFromStorage(chatId) {
       renderTreeButton();
       console.log('Adding prompt jump buttons...');
       renderButtons();
+      replaceEditMessageButtons(); // <<< Run for initial load
 
       // Start autosave if the chat is trackable and has an ID
       if (isChatTrackable && currentChatId) {
@@ -598,7 +599,7 @@ async function loadTreeFromStorage(chatId) {
         pointer-events: none;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         user-select: none;
-        -webkit-user-select: none;
+        -webkit-user--select: none;
         -moz-user-select: none;
         -ms-user-select: none;
       }
@@ -800,6 +801,53 @@ async function loadTreeFromStorage(chatId) {
       treeBtn.setAttribute('title', 'Tree view is not available for pre-existing chats');
     }
   }
+
+// =================================================================
+// <<< MODIFICATION START: Updated function to replace edit buttons >>>
+// =================================================================
+function replaceEditMessageButtons() {
+    // Colors from the jump buttons' hover state
+    const backgroundColor = '#6ee7b7';
+    const textColor = '#23272f'; // Black/dark gray
+
+    // Find all potential buttons that haven't been modified yet
+    const editButtons = document.querySelectorAll('button[aria-label="Edit message"]:not([data-chatgptree-modified])');
+
+    editButtons.forEach(button => {
+        // Mark as modified to prevent re-processing
+        button.setAttribute('data-chatgptree-modified', 'true');
+        
+        // --- Tooltip and Accessibility ---
+        button.setAttribute('title', ''); // Explicitly remove the hover tooltip
+        button.setAttribute('aria-label', 'Create a branch here');
+
+        // --- Apply new styles to the button itself ---
+        button.style.backgroundColor = backgroundColor;
+        button.style.borderRadius = '18px'; // Make it rounder, like a pill
+        button.style.border = 'none'; // Remove any default border
+        
+        // Remove original hover effect to avoid color conflicts
+        button.classList.remove('hover:bg-token-bg-secondary');
+
+        const innerSpan = button.querySelector('span');
+        if (innerSpan) {
+            // Adjust layout classes to fit text content
+            innerSpan.classList.remove('w-8', 'justify-center');
+            innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
+
+            // --- Set new content and text styles ---
+            innerSpan.style.color = textColor; // Set text to black
+            innerSpan.style.fontSize = '14px';
+            innerSpan.style.fontWeight = '500';
+            innerSpan.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
+
+            innerSpan.innerHTML = '🌳 Create a branch here';
+        }
+    });
+}
+// ===============================================================
+// <<< MODIFICATION END >>>
+// ===============================================================
 
   function createTreeOverlay() {
     let overlay = document.querySelector('.chatgptree-overlay');
@@ -1010,6 +1058,7 @@ async function loadTreeFromStorage(chatId) {
           // We will update tree data regardless, but only show buttons for 2+
           updateTreeData(prompts);
           renderButtons();
+          replaceEditMessageButtons(); // <<< Run for dynamic changes
           // If the tree view is open, refresh it with new data
           const overlay = document.querySelector('.chatgptree-overlay');
           if (overlay && overlay.classList.contains('visible')) {
