@@ -118,8 +118,16 @@ async function loadTreeFromStorage(chatId) {
       };
     `);
   }
+  
   // Expose the function to the global scope for console debugging
   window.logCurrentView = logCurrentView;
+
+  // Expose a function to get a JSON-serializable copy of the tree data.
+  window.getChatGPTreeData = () => {
+    // We ONLY return the serialized, plain object version.
+    // This is what the "Copy object" feature can understand.
+    return serializeTreeForStorage(treeData);
+  };
 
   function getChatIdFromUrl() {
     // Extracts the chat ID from a URL like https://chatgpt.com/c/xxxxxxxx-xxxx...
@@ -849,7 +857,7 @@ function replaceEditMessageButtons() {
                 innerSpan.style.fontSize = '14px';
                 innerSpan.style.fontWeight = '500';
                 innerSpan.style.whiteSpace = 'nowrap';
-                innerSpan.innerHTML = '🌳 Root Message'; 
+                innerSpan.innerHTML = '🪵 Root Message'; 
             }
             
             // Set the flag to true so this block never runs again for this chat
@@ -873,7 +881,7 @@ function replaceEditMessageButtons() {
                 innerSpan.style.fontSize = '14px';
                 innerSpan.style.fontWeight = '500';
                 innerSpan.style.whiteSpace = 'nowrap';
-                innerSpan.innerHTML = '🌳 Create a branch here';
+                innerSpan.innerHTML = '🪵 Create a branch here';
             }
         }
     });
