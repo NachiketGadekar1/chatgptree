@@ -1,3 +1,5 @@
+// --- START OF FILE contentScript.js ---
+
 console.log('ChatGPTree content script starting...');
 
 (function addPromptJumpButtons() {
@@ -14,7 +16,7 @@ console.log('ChatGPTree content script starting...');
   let hasCreatedRootButton = false;
 
   // =================================================================
-// NEW: Storage Helper Functions
+// Storage Helper Functions
 // =================================================================
 
 /**
@@ -92,6 +94,89 @@ async function loadTreeFromStorage(chatId) {
   }
 }
 
+// =================================================================
+// NEW: Tree Search Function (DFS)
+// =================================================================
+
+/**
+ * Finds a node by its messageId and returns the node data along with the
+ * full path of messageIds from the root to the target. Uses Depth-First Search.
+ *
+ * @param {object} treeDataObject - The live treeData object (using Maps).
+ * @param {string} targetMessageId - The messageId of the node to find.
+ * @returns {{node: object, path: string}|null} An object containing the found node
+ *          and the path string (e.g., "rootId->childId->targetId"), or null if not found.
+ */
+function findNodeAndPathDfs(treeDataObject, targetMessageId) {
+  if (!treeDataObject || !treeDataObject.nodes) {
+    console.error("Invalid tree data object provided.");
+    return null;
+  }
+
+  const nodesMap = treeDataObject.nodes;
+
+  // --- Recursive DFS Helper Function ---
+  // Returns an array of IDs representing the path, or null.
+  const findPath = (currentId) => {
+    const currentNode = nodesMap.get(currentId);
+    if (!currentNode) {
+      return null;
+    }
+    
+    // Base Case: If the current node is the target, return a path with its ID.
+    if (currentNode.messageId === targetMessageId) {
+      return [currentNode.messageId];
+    }
+
+    // Recursive Step: Search in the children.
+    for (const childId of currentNode.children) {
+      const subPath = findPath(childId);
+      
+      // If a path was found in a child branch, prepend the current node's ID.
+      if (subPath) {
+        return [currentNode.messageId, ...subPath];
+      }
+    }
+
+    // If the target was not found in any child branch, return null.
+    return null;
+  };
+
+  // --- Find Roots and Initiate Search ---
+  const rootIds = [];
+  // Iterate over all nodes to find the ones with no parent (roots).
+  for (const node of nodesMap.values()) {
+    if (node.parentId === null) {
+      rootIds.push(node.messageId);
+    }
+  }
+  
+  if (rootIds.length === 0 && nodesMap.size > 0) {
+      console.warn("DFS Search: No root nodes found in the tree.");
+  }
+
+  // --- Execute Search and Format Output ---
+  for (const rootId of rootIds) {
+    const pathArray = findPath(rootId);
+    
+    // If a path was found...
+    if (pathArray) {
+      const foundNode = nodesMap.get(targetMessageId);
+      const pathString = pathArray.join('->');
+      
+      // Return the final result object.
+      return {
+        node: foundNode,
+        path: pathString,
+      };
+    }
+  }
+
+  // If we've searched all trees and found nothing, return null.
+  return null;
+}
+
+
   // Tree data structure
   let treeData = {
     nodes: new Map(), // messageId -> { messageId, text, parentId, x, y, children: [] }
@@ -124,9 +209,28 @@ async function loadTreeFromStorage(chatId) {
 
   // Expose a function to get a JSON-serializable copy of the tree data.
   window.getChatGPTreeData = () => {
-    // We ONLY return the serialized, plain object version.
-    // This is what the "Copy object" feature can understand.
     return serializeTreeForStorage(treeData);
+  };
+  
+  // NEW: Expose the search function for easy debugging from the console.
+  // This will search the tree of the CURRENTLY VIEWED chat.
+  window.searchChatGPTree = (targetMessageId) => {
+      if (!targetMessageId) {
+          console.error("Please provide a targetMessageId to search for.");
+          return;
+      }
+      console.log(`Searching for messageId: ${targetMessageId} in the current chat tree...`);
+      
+      const result = findNodeAndPathDfs(treeData, targetMessageId);
+      
+      if (result) {
+          console.log("✅ Node Found!");
+          console.log("Path:", result.path);
+          console.log("Node Data:", result.node);
+      } else {
+          console.log("❌ Node not found in the current chat's tree.");
+      }
+      return result;
   };
 
   function getChatIdFromUrl() {
@@ -812,9 +916,6 @@ async function loadTreeFromStorage(chatId) {
     }
   }
 
-// =================================================================
-// <<< MODIFICATION START: Updated function using a state flag >>>
-// =================================================================
 function replaceEditMessageButtons() {
     // Define colors for both states
     const enabledBackgroundColor = '#6ee7b7';
