@@ -961,7 +961,6 @@ async function executeNavigationStep(parentMessageId, targetChildMessageId) {
 
     const parentNode = treeData.nodes.get(parentMessageId);
     if (!parentNode || parentNode.children.length < 2) {
-        console.log(`----> [executeNavigationStep] Parent is not a branch point. Skipping.`);
         return true; // Not a failure, just nothing to do.
     }
 
@@ -971,7 +970,6 @@ async function executeNavigationStep(parentMessageId, targetChildMessageId) {
         return false;
     }
 
-    // Find the currently visible child element to locate the navigation controls
     let visibleChildElement = null;
     for (const childId of parentNode.children) {
         const element = document.querySelector(`div[data-message-id="${childId}"]`);
@@ -982,54 +980,44 @@ async function executeNavigationStep(parentMessageId, targetChildMessageId) {
     }
 
     if (!visibleChildElement) {
-        console.warn(`----> [executeNavigationStep] DOM Failure: Could not find any child messages for parent "${parentMessageId}". This is expected if the UI is not loaded.`);
-        return false; // Signal failure so the caller can retry.
+        console.warn(`----> [executeNavigationStep] DOM Failure: Could not find any child messages for parent "${parentMessageId}".`);
+        return false;
     }
 
     const childArticle = visibleChildElement.closest('article[data-testid^="conversation-turn-"]');
-    if (!childArticle) {
-        console.error("----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the container for the visible message.");
-        return false;
-    }
+    if (!childArticle) { return false; }
 
     const navButton = childArticle.querySelector('button[aria-label="Next response"], button[aria-label="Previous response"]');
-    if (!navButton) {
-        console.error(`----> [executeNavigationStep] CRITICAL DOM Failure: Could not find navigation buttons for this branch.`);
-        return false;
-    }
+    if (!navButton) { return false; }
     const navControls = navButton.parentElement;
 
     const counterDiv = navControls.querySelector('.page-indicator, .px-0-5, .tabular-nums');
-    if (!counterDiv) {
-        console.error("----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the page counter (e.g., '1/2').");
-        return false;
-    }
+    if (!counterDiv) { return false; }
     const [currentBranchNumber] = counterDiv.textContent.split('/').map(Number);
 
     const clicksNeeded = targetBranchNumber - currentBranchNumber;
     if (clicksNeeded === 0) {
-        return true; // Already at the correct branch
+        return true;
     }
 
     const buttonLabel = clicksNeeded > 0 ? 'Next response' : 'Previous response';
     const buttonToClick = navControls.querySelector(`button[aria-label="${buttonLabel}"]`);
-    if (!buttonToClick) {
-        console.error(`----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the '${buttonLabel}' button.`);
-        return false;
-    }
+    if (!buttonToClick) { return false; }
 
     const numClicks = Math.abs(clicksNeeded);
     for (let i = 0; i < numClicks; i++) {
         buttonToClick.click();
-        await sleep(400);
+        // --- OPTIMIZATION: Reduced sleep time ---
+        await sleep(200); 
     }
 
     return true;
 }
 
 /**
- * Main orchestrator for handling a click on a tree node. Implements a
- * recursive "fresh start" retry mechanism for both scroll and navigation failures.
+ * Main orchestrator for handling a click on a tree node. Optimized for speed
+ * with reduced sleep timers, a "pre-emptive shortcut" check, and an
+ * "opportunistic shortcut" check during navigation.
  * @param {object} targetNode The full data object of the clicked node.
  * @param {boolean} [isRetry=false] Flag to prevent infinite retry loops.
  */
@@ -1041,13 +1029,22 @@ async function handleNodeClick(targetNode, isRetry = false) {
         toggleTreeOverlay();
     }
 
+    // --- OPTIMIZATION 1: PRE-EMPTIVE SHORTCUT ---
+    // Before doing anything complex, check if the target is already in the DOM.
+    if (document.querySelector(`div[data-message-id="${targetNode.messageId}"]`)) {
+        console.log('%c----> [OPTIMIZATION] Target is already in DOM. Taking pre-emptive shortcut.', 'font-weight: bold; color: green;');
+        scrollToPromptById(targetNode.messageId);
+        return;
+    }
+    // ---
+
     // --- Start of the "Fresh Start" block ---
     const targetPathResult = findNodeAndPathDfs(treeData, targetNode.messageId);
-    if (!targetPathResult) { /* ... error handling ... */ return; }
+    if (!targetPathResult) { /* ... */ return; }
     const targetPath = targetPathResult.path.split('->');
 
     const currentPromptId = findCurrentActivePromptId();
-    if (!currentPromptId) { /* ... error handling ... */ return; }
+    if (!currentPromptId) { /* ... */ return; }
     const currentPathResult = findNodeAndPathDfs(treeData, currentPromptId);
     const currentPath = currentPathResult ? currentPathResult.path.split('->') : [currentPromptId];
 
@@ -1067,58 +1064,51 @@ async function handleNodeClick(targetNode, isRetry = false) {
     if (navigationSteps.length > 0) {
         let parentForStep = forkPointId;
         for (const step of navigationSteps) {
-            // A. ATTEMPT TO SCROLL the parent into view.
             const scrollSuccess = scrollToPromptById(parentForStep);
 
-            // B. HANDLE SCROLL FAILURE with a recursive retry.
             if (!scrollSuccess) {
-                if (isRetry) {
-                    const message = `Automatic retry failed: Could not scroll to parent "${parentForStep}".`;
-                    console.error(`----> [handleNodeClick - ${actionType}] ABORTING.`, message);
-                    showToast(message, 7000);
-                    return;
-                }
-                const message = `Scroll failed. Automatically retrying navigation...`;
-                console.warn(`----> [handleNodeClick - ${actionType}] Scroll to parent failed. Triggering automatic retry.`);
-                showToast(message, 3000);
-                await sleep(1000);
-                handleNodeClick(targetNode, true); // Recursive "fresh start"
+                if (isRetry) { /* ... */ return; }
+                showToast(`Navigation failed. Automatically retrying...`, 3000);
+                // --- OPTIMIZATION: Reduced sleep time ---
+                await sleep(750); 
+                handleNodeClick(targetNode, true);
                 return;
             }
 
-            await sleep(500); // Give a moment for the scroll to settle.
+            // --- OPTIMIZATION: Reduced sleep time ---
+            await sleep(250);
 
-            // C. ATTEMPT the navigation step.
             const navSuccess = await executeNavigationStep(parentForStep, step);
             
-            // D. HANDLE NAVIGATION FAILURE with a recursive retry.
             if (!navSuccess) {
-                if (isRetry) {
-                    const message = `Automatic retry failed at step to "${step}".`;
-                    console.error(`----> [handleNodeClick - ${actionType}] ABORTING.`, message);
-                    showToast(message, 7000);
-                    return;
-                }
-                const message = `Navigation step failed. Automatically retrying...`;
-                console.warn(`----> [handleNodeClick - ${actionType}] Navigation click failed. Triggering automatic retry.`);
-                showToast(message, 3000);
-                await sleep(1000);
-                handleNodeClick(targetNode, true); // Recursive "fresh start"
+                if (isRetry) { /* ... */ return; }
+                showToast(`Navigation step failed. Automatically retrying...`, 3000);
+                // --- OPTIMIZATION: Reduced sleep time ---
+                await sleep(750);
+                handleNodeClick(targetNode, true);
                 return;
             }
+
+            // --- OPTIMIZATION 2: OPPORTUNISTIC SHORTCUT ---
+            const finalTargetElement = document.querySelector(`div[data-message-id="${targetNode.messageId}"]`);
+            if (finalTargetElement) {
+                console.log(`%c----> [OPTIMIZATION] Final target ${targetNode.messageId} is now in the DOM! Taking opportunistic shortcut.`, 'font-weight: bold; color: cyan;');
+                await sleep(100); // Very short pause for UI to settle before final scroll
+                scrollToPromptById(targetNode.messageId);
+                return;
+            }
+            // ---
             
             parentForStep = step;
         }
     }
 
-    // 6. Finalize: The final scroll to the destination.
     console.log(`----> [handleNodeClick - ${actionType}] Navigation complete. Scrolling to final destination: ${targetNode.messageId}`);
     const finalScrollSuccess = scrollToPromptById(targetNode.messageId);
 
-    // Handle the edge case where even the final scroll fails after a successful navigation.
     if (!finalScrollSuccess && !isRetry) {
         console.warn(`----> [handleNodeClick - ${actionType}] Final scroll failed. Triggering one last retry.`);
-        await sleep(1000);
+        await sleep(250);
         handleNodeClick(targetNode, true);
     }
 }
