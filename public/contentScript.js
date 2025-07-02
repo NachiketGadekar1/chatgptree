@@ -13,6 +13,36 @@ console.log('ChatGPTree content script starting...');
   let autosaveInterval = null;
   let hasCreatedRootButton = false;
 
+  /**
+ * Displays a temporary toast notification on the screen.
+ * @param {string} message The message to display.
+ * @param {number} [duration=5000] The time in ms for the toast to be visible.
+ */
+  function showToast(message, duration = 5000) {
+    // Remove any existing toast to prevent stacking
+    const existingToast = document.querySelector('.chatgptree-toast-notification');
+    if (existingToast) {
+      existingToast.remove();
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'chatgptree-toast-notification';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Animate it in with a slight delay to ensure CSS transition is applied
+    setTimeout(() => {
+      toast.classList.add('visible');
+    }, 10);
+
+    // Set a timer to remove the toast
+    setTimeout(() => {
+      toast.classList.remove('visible');
+      // Remove the element from the DOM after the fade-out transition completes
+      toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    }, duration);
+  }
+
 /**
  * Serializes the treeData object so it can be stored as JSON.
  * Specifically converts Map objects to Arrays.
@@ -87,6 +117,14 @@ async function loadTreeFromStorage(chatId) {
     return null;
   }
 }
+
+  /**
+   * A simple promise-based delay helper.
+   * @param {number} ms - The number of milliseconds to wait.
+   */
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
 /**
  * Finds a node by its messageId and returns the node data along with the
@@ -458,6 +496,35 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
   function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
+/* --- MODIFIED: Toast Notification Styles --- */
+      .chatgptree-toast-notification {
+        position: fixed;
+        bottom: 24px; /* Position above the bottom edge */
+        left: 50%;   /* Center horizontally */
+        z-index: 100000;
+        background: rgba(239, 68, 68, 0.95); /* Red for error */
+        color: #ffffff;
+        border: 2px solid #f87171;
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        max-width: 450px;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        /* Start below the final position and centered */
+        transform: translate(-50%, 40px);
+        transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .chatgptree-toast-notification.visible {
+        opacity: 1;
+        /* Animate to the final position */
+        transform: translate(-50%, 0);
+      }
+      /* --- End of Modified Styles --- */
+      
       .chatgptree-prompt-jump-stack {
         position: fixed;
         top: 120px;
@@ -810,6 +877,238 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     );
   }
 
+  /**
+ * Scrolls the page to the prompt with the given messageId and updates the UI.
+ * @param {string} messageId The messageId of the prompt to scroll to.
+ */
+  function scrollToPromptById(messageId) {
+    const targetPromptElement = document.querySelector(`div[data-message-id="${messageId}"]`);
+    if (!targetPromptElement) {
+        console.error(`[scrollToPromptById] Could not find prompt element with ID: ${messageId}`);
+        return;
+    }
+
+    console.log(`[scrollToPromptById] Scrolling to prompt: ${messageId}`);
+    targetPromptElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Also update the active button in the side-stack
+    const allPrompts = getUserPrompts();
+    const targetIndex = allPrompts.findIndex(p => p.dataset.messageId === messageId);
+    if (targetIndex !== -1) {
+        updateActiveButton(targetIndex);
+    }
+  }
+
+
+/**
+ * Finds the currently visible user prompt that has the active navigation controls.
+ * @returns {string|null} The messageId of the active prompt, or null if not found.
+ */
+function findCurrentActivePromptId() {
+    console.log('[findCurrentActivePromptId] Searching for active prompt...');
+
+    // Find the last visible navigation controls on the page.
+    const allNavControls = document.querySelectorAll('.response-navigation, div.text-token-text-secondary:has(> button[aria-label])');
+    const navControls = allNavControls.length > 0 ? allNavControls[allNavControls.length - 1] : null;
+
+    // --- CASE 1: We are on a branched message with < > controls ---
+    if (navControls) {
+        console.log('[findCurrentActivePromptId] Found navigation controls. Determining context...');
+        // Find the top-level "conversation turn" article for the assistant's response.
+        const assistantArticle = navControls.closest('article[data-testid^="conversation-turn-"]');
+
+        if (assistantArticle) {
+            // Scan backwards from the assistant's article to find the preceding user article.
+            let precedingElement = assistantArticle.previousElementSibling;
+            while (precedingElement) {
+                // Check if this element is an article and contains a user message
+                const userPromptElement = precedingElement.querySelector('[data-message-author-role="user"][data-message-id]');
+                if (userPromptElement && precedingElement.matches('article[data-testid^="conversation-turn-"]')) {
+                    const messageId = userPromptElement.dataset.messageId;
+                    console.log(`[findCurrentActivePromptId] Found active prompt via nav controls: ${messageId}`);
+                    return messageId;
+                }
+                precedingElement = precedingElement.previousElementSibling;
+            }
+        }
+        console.warn('[findCurrentActivePromptId] Could not associate nav controls with a prompt. Falling back to latest prompt.');
+    }
+
+    // --- CASE 2: No nav controls found OR the association failed. Assume latest message. ---
+    console.log('[findCurrentActivePromptId] Assuming latest prompt in view.');
+    const allUserPrompts = document.querySelectorAll('[data-message-author-role="user"][data-message-id]');
+    if (allUserPrompts.length > 0) {
+        const lastUserPrompt = allUserPrompts[allUserPrompts.length - 1];
+        const messageId = lastUserPrompt.dataset.messageId;
+        console.log(`[findCurrentActivePromptId] Found latest prompt: ${messageId}`);
+        return messageId;
+    }
+
+    console.error('[findCurrentActivePromptId] Could not find any user prompts on the page.');
+    return null;
+}
+
+/**
+ * Executes a single navigation step, clicking the < or > buttons to move
+ * from one child branch to another.
+ * @param {string} parentMessageId The ID of the parent/fork prompt.
+ * @param {string} targetChildMessageId The ID of the child prompt we want to display.
+ */
+async function executeNavigationStep(parentMessageId, targetChildMessageId) {
+    console.log(`%c----> [executeNavigationStep] Navigating from parent "${parentMessageId}" to child "${targetChildMessageId}"`, 'font-weight:bold;');
+
+    const parentNode = treeData.nodes.get(parentMessageId);
+    if (!parentNode || parentNode.children.length < 2) {
+        console.log(`----> [executeNavigationStep] Parent is not a branch point. Skipping.`);
+        return;
+    }
+
+    const targetBranchNumber = parentNode.children.indexOf(targetChildMessageId) + 1;
+    if (targetBranchNumber === 0) {
+        console.error(`----> [executeNavigationStep] Target child ${targetChildMessageId} not found in parent's children.`);
+        return;
+    }
+
+    // 1. Find which of the parent's children is currently visible in the DOM.
+    let visibleChildElement = null;
+    let visibleChildId = null;
+    console.log(`----> [executeNavigationStep] Searching for one of ${parentNode.children.length} children in the DOM...`);
+    for (const childId of parentNode.children) {
+        const element = document.querySelector(`div[data-message-id="${childId}"]`);
+        console.log(`----> [executeNavigationStep] ...checking for child ${childId}: ${element ? 'FOUND' : 'Not found'}`);
+        if (element) {
+            visibleChildElement = element;
+            visibleChildId = childId;
+            console.log(`----> [executeNavigationStep] Found currently visible child prompt in DOM: ${childId}`);
+            break;
+        }
+    }
+
+    if (!visibleChildElement) {
+        const errorMessage = "Navigation failed. The target message is not loaded in the DOM. Please scroll closer to the branch point and try again.";
+        console.error(`----> [executeNavigationStep] ${errorMessage}`);
+        showToast(errorMessage, 6000);
+        return;
+    }
+
+    // 2. Find the article containing that visible child.
+    const childArticle = visibleChildElement.closest('article[data-testid^="conversation-turn-"]');
+    if (!childArticle) {
+        const errorMessage = "Navigation failed: Could not find the container for the visible message.";
+        console.error(`----> [executeNavigationStep] ${errorMessage}`);
+        showToast(errorMessage);
+        return;
+    }
+    console.log(`----> [executeNavigationStep] Found article for visible child.`);
+
+    // 3. Search WITHIN that same article for the navigation controls.
+    const navButton = childArticle.querySelector('button[aria-label="Next response"], button[aria-label="Previous response"]');
+    if (!navButton) {
+        const errorMessage = "Navigation failed: Could not find navigation buttons for this branch.";
+        console.error(`----> [executeNavigationStep] CRITICAL: ${errorMessage} (Child: ${visibleChildId})`);
+        showToast(errorMessage);
+        return;
+    }
+    console.log(`----> [executeNavigationStep] Found navigation button: "${navButton.ariaLabel}"`);
+    const navControls = navButton.parentElement;
+
+    const counterDiv = navControls.querySelector('.page-indicator, .px-0-5, .tabular-nums');
+    if (!counterDiv) {
+        const errorMessage = "Navigation failed: Could not find the page counter (e.g., '1/2').";
+        console.error(`----> [executeNavigationStep] ${errorMessage}`);
+        showToast(errorMessage);
+        return;
+    }
+    const [currentBranchNumber, totalBranches] = counterDiv.textContent.split('/').map(Number);
+
+    console.log(`----> [executeNavigationStep] Current state: ${currentBranchNumber}/${totalBranches}. Target branch: ${targetBranchNumber}.`);
+
+    const clicksNeeded = targetBranchNumber - currentBranchNumber;
+    if (clicksNeeded === 0) {
+        console.log('----> [executeNavigationStep] Already at the correct branch. No clicks needed.');
+        return;
+    }
+
+    const buttonLabel = clicksNeeded > 0 ? 'Next response' : 'Previous response';
+    const buttonToClick = navControls.querySelector(`button[aria-label="${buttonLabel}"]`);
+    if (!buttonToClick) {
+        const errorMessage = `Navigation failed: Could not find the '${buttonLabel}' button.`;
+        console.error(`----> [executeNavigationStep] ${errorMessage}`);
+        showToast(errorMessage);
+        return;
+    }
+    const numClicks = Math.abs(clicksNeeded);
+
+    console.log(`----> [executeNavigationStep] Planning to click "${buttonLabel}" ${numClicks} time(s).`);
+
+    for (let i = 0; i < numClicks; i++) {
+        console.log(`----> [executeNavigationStep] Clicking "${buttonLabel}"... (${i + 1}/${numClicks})`);
+        buttonToClick.click();
+        await sleep(400); // Wait for UI to update
+    }
+
+    console.log('%c----> [executeNavigationStep] Step completed successfully.', 'color: #6ee7b7');
+}
+
+/**
+ * Main orchestrator for handling a click on a tree node.
+ * @param {object} targetNode The full data object of the clicked node.
+ */
+async function handleNodeClick(targetNode) {
+    console.log(`%c----> [handleNodeClick] Starting navigation to: ${targetNode.messageId}`, 'font-weight: bold; color: #6ee7b7;');
+    toggleTreeOverlay(); // Close the overlay to show the chat
+
+    // 1. Get Target Path
+    const targetPathResult = findNodeAndPathDfs(treeData, targetNode.messageId);
+    if (!targetPathResult) {
+        console.error('----> [handleNodeClick] Could not find path to target node. Aborting.');
+        return;
+    }
+    const targetPath = targetPathResult.path.split('->');
+    console.log('----> [handleNodeClick] Target Path:', targetPath.join(' -> '));
+
+    // 2. Get Current Path
+    const currentPromptId = findCurrentActivePromptId();
+    if (!currentPromptId) {
+        console.error('----> [handleNodeClick] Could not determine current location. Aborting.');
+        return;
+    }
+    const currentPathResult = findNodeAndPathDfs(treeData, currentPromptId);
+    const currentPath = currentPathResult ? currentPathResult.path.split('->') : [currentPromptId];
+    console.log('----> [handleNodeClick] Current Path:', currentPath.join(' -> '));
+
+    // 3. Find the Fork (Common Ancestor)
+    let forkIndex = -1;
+    while (
+        forkIndex + 1 < currentPath.length &&
+        forkIndex + 1 < targetPath.length &&
+        currentPath[forkIndex + 1] === targetPath[forkIndex + 1]
+    ) {
+        forkIndex++;
+    }
+    const forkPointId = currentPath[forkIndex];
+    console.log(`----> [handleNodeClick] Fork point identified at index ${forkIndex}: "${forkPointId}"`);
+
+    // 4. Determine Navigation Steps
+    const navigationSteps = targetPath.slice(forkIndex + 1);
+    console.log('----> [handleNodeClick] Navigation plan:', navigationSteps);
+
+    if (navigationSteps.length === 0) {
+        console.log('----> [handleNodeClick] Target is on the current path or is the current node. No navigation needed.');
+    } else {
+        // 5. Execute Navigation
+        let parentForStep = forkPointId;
+        for (const step of navigationSteps) {
+            await executeNavigationStep(parentForStep, step);
+            parentForStep = step; // The current step becomes the parent for the next
+        }
+    }
+
+    // 6. Finalize
+    console.log(`----> [handleNodeClick] Navigation complete. Scrolling to final destination: ${targetNode.messageId}`);
+    scrollToPromptById(targetNode.messageId);
+}
+
   function scrollToPrompt(idx) {
     const prompts = getUserPrompts();
     if (prompts[idx]) {
@@ -823,8 +1122,6 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     if (stack) stack.remove();
     
     const prompts = getUserPrompts();
-    console.log('Found prompts:', prompts.length);
-    
     // Always update tree data even with one prompt
     updateTreeData(prompts);
     
@@ -996,8 +1293,6 @@ function replaceEditMessageButtons() {
 
   // Add panning functionality
   function initializePanningEvents(container, viewportGroup) {
-    console.log('Initializing panning events on viewport group');
-
     // This function now applies the transform to the <g> element
     function updateTransform() {
       const matrix = `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`;
@@ -1020,7 +1315,7 @@ function replaceEditMessageButtons() {
     let lastMouseX = 0;
     let lastMouseY = 0;
     let panTicking = false;
-    const panSpeed = 5.0; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
+    const panSpeed = 2.5; // 1.0 is a 1:1 ratio. 1.5 is 50% faster. 2.0 is 100% faster.
 
     function startPan(evt) {
       if (evt.button !== 0) return;
@@ -1173,7 +1468,6 @@ function replaceEditMessageButtons() {
       );
 
       if (hasRelevantChanges) {
-        console.log('Chat content changed, checking prompts...');
         // Small delay to ensure DOM is settled
         setTimeout(() => {
           const prompts = getUserPrompts();
@@ -1296,14 +1590,15 @@ function replaceEditMessageButtons() {
 
 
   function createTreeNode(prompt, x, y, isRoot = false) {
-    const NODE_RADIUS = 35; 
+    const NODE_RADIUS = 35;
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
 
-    // --- NEW: Add click listener to the node group ---
+    // --- MODIFIED: Add click listener to trigger navigation ---
     node.onclick = () => {
-      console.log('Node clicked. Data:', prompt);
+      console.log('Node clicked. Initiating navigation. Data:', prompt);
+      handleNodeClick(prompt); // 'prompt' is the full node object
     };
 
     const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -1330,7 +1625,7 @@ function replaceEditMessageButtons() {
     textBg.setAttribute('fill', 'rgba(255,255,255,0.95)');
 
     const MAX_DISPLAY = 11;
-    const displayText = prompt.text.length > MAX_DISPLAY ? 
+    const displayText = prompt.text.length > MAX_DISPLAY ?
       prompt.text.substring(0, MAX_DISPLAY) + '...' :
       prompt.text;
 
@@ -1361,7 +1656,7 @@ function replaceEditMessageButtons() {
     fullText.setAttribute('x', '0');
     fullText.setAttribute('text-anchor', 'middle');
     fullText.setAttribute('font-size', '14px');
-    
+
     const HOVER_MAX_LENGTH = 40;
     const words = prompt.text.split(' ');
     let hoverLines = [''];
@@ -1386,12 +1681,12 @@ function replaceEditMessageButtons() {
     const lineHeight = 20;
     const boxWidth = Math.min(400, Math.max(...hoverLines.map(l => l.length * 8)));
     const boxHeight = hoverLines.length * lineHeight + padding * 2;
-    
-    fullTextBg.setAttribute('x', -boxWidth/2);
-    fullTextBg.setAttribute('y', -(boxHeight/2 + lineHeight/2));
+
+    fullTextBg.setAttribute('x', -boxWidth / 2);
+    fullTextBg.setAttribute('y', -(boxHeight / 2 + lineHeight / 2));
     fullTextBg.setAttribute('width', boxWidth);
     fullTextBg.setAttribute('height', boxHeight);
-    
+
     fullText.style.display = 'none';
     fullTextBg.style.display = 'none';
 
@@ -1401,7 +1696,7 @@ function replaceEditMessageButtons() {
       fullTextBg.style.display = '';
       fullText.style.display = '';
     };
-    
+
     const hideFullText = () => {
       circle.style.filter = '';
       text.style.fontWeight = '500';
