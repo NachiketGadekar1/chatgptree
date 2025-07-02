@@ -784,7 +784,7 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     
     for (const selector of selectors) {
       const elements = document.querySelectorAll(selector);
-      console.log(`Trying selector "${selector}":`, elements.length, 'elements found');
+      // console.log(`Trying selector "${selector}":`, elements.length, 'elements found');
       if (elements.length > 0) {
         return Array.from(elements);
       }
@@ -844,7 +844,7 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     }
     
     prompts.forEach((prompt, i) => {
-      console.log('Creating button for prompt', i + 1);
+      // console.log('Creating button for prompt', i + 1);
       const btn = document.createElement('button');
       btn.className = 'chatgptree-prompt-jump-btn';
       
@@ -1301,6 +1301,11 @@ function replaceEditMessageButtons() {
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
 
+    // --- NEW: Add click listener to the node group ---
+    node.onclick = () => {
+      console.log('Node clicked. Data:', prompt);
+    };
+
     const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     shadow.setAttribute('r', NODE_RADIUS.toString());
     shadow.setAttribute('fill', 'rgba(0,0,0,0.1)');
@@ -1447,7 +1452,7 @@ function replaceEditMessageButtons() {
 
     const treeRoot = treeContainer.querySelector('.chatgptree-tree');
     if (!treeRoot) return;
-    treeRoot.innerHTML = '';
+    treeRoot.innerHTML = ''; // Clear previous tree
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
@@ -1459,6 +1464,7 @@ function replaceEditMessageButtons() {
 
     calculateNodePositions();
 
+    // Create connections first so they are in the background
     treeData.nodes.forEach(node => {
       if (node.parentId) {
         const parent = treeData.nodes.get(node.parentId);
@@ -1469,22 +1475,19 @@ function replaceEditMessageButtons() {
       }
     });
 
+    // Create nodes on top of connections
     treeData.nodes.forEach(node => {
-      const treeNode = createTreeNode({ text: node.text }, node.x, node.y, false);
+      const treeNode = createTreeNode(node, node.x, node.y, false);
       viewportGroup.appendChild(treeNode);
     });
 
     svg.appendChild(viewportGroup);
     treeRoot.appendChild(svg);
 
-    const newContainer = treeContainer.cloneNode(true);
-    treeContainer.replaceWith(newContainer);
-
-    const newViewportGroup = newContainer.querySelector('.chatgptree-viewport');
-
-    if (newViewportGroup) {
-        initializePanningEvents(newContainer, newViewportGroup);
-    }
+    // --- FIX: REMOVED THE CLONING ---
+    // Instead, we will directly re-initialize the panning events on the
+    // existing container and the newly created viewport group.
+    initializePanningEvents(treeContainer, viewportGroup);
   }
 
   // Start everything
