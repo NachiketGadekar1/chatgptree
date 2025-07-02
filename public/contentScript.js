@@ -949,10 +949,12 @@ function findCurrentActivePromptId() {
 }
 
 /**
- * Executes a single navigation step, clicking the < or > buttons to move
- * from one child branch to another.
+ * Executes a single navigation step. This is a "dumb" function that expects
+ * the necessary UI elements to be present in the DOM. It returns true on
+ * success and false on failure, allowing the caller to handle retries.
  * @param {string} parentMessageId The ID of the parent/fork prompt.
  * @param {string} targetChildMessageId The ID of the child prompt we want to display.
+ * @returns {Promise<boolean>} A promise that resolves to true if navigation succeeded, false otherwise.
  */
 async function executeNavigationStep(parentMessageId, targetChildMessageId) {
     console.log(`%c----> [executeNavigationStep] Navigating from parent "${parentMessageId}" to child "${targetChildMessageId}"`, 'font-weight:bold;');
@@ -960,124 +962,95 @@ async function executeNavigationStep(parentMessageId, targetChildMessageId) {
     const parentNode = treeData.nodes.get(parentMessageId);
     if (!parentNode || parentNode.children.length < 2) {
         console.log(`----> [executeNavigationStep] Parent is not a branch point. Skipping.`);
-        return;
+        return true; // Not a failure, just nothing to do.
     }
 
     const targetBranchNumber = parentNode.children.indexOf(targetChildMessageId) + 1;
     if (targetBranchNumber === 0) {
-        console.error(`----> [executeNavigationStep] Target child ${targetChildMessageId} not found in parent's children.`);
-        return;
+        console.error(`----> [executeNavigationStep] Logic Error: Target child ${targetChildMessageId} not found in parent's children.`);
+        return false;
     }
 
-    // 1. Find which of the parent's children is currently visible in the DOM.
+    // Find the currently visible child element to locate the navigation controls
     let visibleChildElement = null;
-    let visibleChildId = null;
-    console.log(`----> [executeNavigationStep] Searching for one of ${parentNode.children.length} children in the DOM...`);
     for (const childId of parentNode.children) {
         const element = document.querySelector(`div[data-message-id="${childId}"]`);
-        console.log(`----> [executeNavigationStep] ...checking for child ${childId}: ${element ? 'FOUND' : 'Not found'}`);
         if (element) {
             visibleChildElement = element;
-            visibleChildId = childId;
-            console.log(`----> [executeNavigationStep] Found currently visible child prompt in DOM: ${childId}`);
             break;
         }
     }
 
     if (!visibleChildElement) {
-        const errorMessage = "Navigation failed. The target message is not loaded in the DOM. Please scroll closer to the branch point and try again.";
-        console.error(`----> [executeNavigationStep] ${errorMessage}`);
-        showToast(errorMessage, 6000);
-        return;
+        console.warn(`----> [executeNavigationStep] DOM Failure: Could not find any child messages for parent "${parentMessageId}". This is expected if the UI is not loaded.`);
+        return false; // Signal failure so the caller can retry.
     }
 
-    // 2. Find the article containing that visible child.
     const childArticle = visibleChildElement.closest('article[data-testid^="conversation-turn-"]');
     if (!childArticle) {
-        const errorMessage = "Navigation failed: Could not find the container for the visible message.";
-        console.error(`----> [executeNavigationStep] ${errorMessage}`);
-        showToast(errorMessage);
-        return;
+        console.error("----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the container for the visible message.");
+        return false;
     }
-    console.log(`----> [executeNavigationStep] Found article for visible child.`);
 
-    // 3. Search WITHIN that same article for the navigation controls.
     const navButton = childArticle.querySelector('button[aria-label="Next response"], button[aria-label="Previous response"]');
     if (!navButton) {
-        const errorMessage = "Navigation failed: Could not find navigation buttons for this branch.";
-        console.error(`----> [executeNavigationStep] CRITICAL: ${errorMessage} (Child: ${visibleChildId})`);
-        showToast(errorMessage);
-        return;
+        console.error(`----> [executeNavigationStep] CRITICAL DOM Failure: Could not find navigation buttons for this branch.`);
+        return false;
     }
-    console.log(`----> [executeNavigationStep] Found navigation button: "${navButton.ariaLabel}"`);
     const navControls = navButton.parentElement;
 
     const counterDiv = navControls.querySelector('.page-indicator, .px-0-5, .tabular-nums');
     if (!counterDiv) {
-        const errorMessage = "Navigation failed: Could not find the page counter (e.g., '1/2').";
-        console.error(`----> [executeNavigationStep] ${errorMessage}`);
-        showToast(errorMessage);
-        return;
+        console.error("----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the page counter (e.g., '1/2').");
+        return false;
     }
-    const [currentBranchNumber, totalBranches] = counterDiv.textContent.split('/').map(Number);
-
-    console.log(`----> [executeNavigationStep] Current state: ${currentBranchNumber}/${totalBranches}. Target branch: ${targetBranchNumber}.`);
+    const [currentBranchNumber] = counterDiv.textContent.split('/').map(Number);
 
     const clicksNeeded = targetBranchNumber - currentBranchNumber;
     if (clicksNeeded === 0) {
-        console.log('----> [executeNavigationStep] Already at the correct branch. No clicks needed.');
-        return;
+        return true; // Already at the correct branch
     }
 
     const buttonLabel = clicksNeeded > 0 ? 'Next response' : 'Previous response';
     const buttonToClick = navControls.querySelector(`button[aria-label="${buttonLabel}"]`);
     if (!buttonToClick) {
-        const errorMessage = `Navigation failed: Could not find the '${buttonLabel}' button.`;
-        console.error(`----> [executeNavigationStep] ${errorMessage}`);
-        showToast(errorMessage);
-        return;
+        console.error(`----> [executeNavigationStep] CRITICAL DOM Failure: Could not find the '${buttonLabel}' button.`);
+        return false;
     }
+
     const numClicks = Math.abs(clicksNeeded);
-
-    console.log(`----> [executeNavigationStep] Planning to click "${buttonLabel}" ${numClicks} time(s).`);
-
     for (let i = 0; i < numClicks; i++) {
-        console.log(`----> [executeNavigationStep] Clicking "${buttonLabel}"... (${i + 1}/${numClicks})`);
         buttonToClick.click();
-        await sleep(400); // Wait for UI to update
+        await sleep(400);
     }
 
-    console.log('%c----> [executeNavigationStep] Step completed successfully.', 'color: #6ee7b7');
+    return true;
 }
 
 /**
- * Main orchestrator for handling a click on a tree node.
+ * Main orchestrator for handling a click on a tree node. Implements a
+ * recursive "fresh start" retry mechanism for both scroll and navigation failures.
  * @param {object} targetNode The full data object of the clicked node.
+ * @param {boolean} [isRetry=false] Flag to prevent infinite retry loops.
  */
-async function handleNodeClick(targetNode) {
-    console.log(`%c----> [handleNodeClick] Starting navigation to: ${targetNode.messageId}`, 'font-weight: bold; color: #6ee7b7;');
-    toggleTreeOverlay(); // Close the overlay to show the chat
+async function handleNodeClick(targetNode, isRetry = false) {
+    const actionType = isRetry ? "RETRY" : "INITIAL";
+    console.log(`%c----> [handleNodeClick - ${actionType}] Starting navigation to: ${targetNode.messageId}`, 'font-weight: bold; color: #6ee7b7;');
 
-    // 1. Get Target Path
+    if (!isRetry) {
+        toggleTreeOverlay();
+    }
+
+    // --- Start of the "Fresh Start" block ---
     const targetPathResult = findNodeAndPathDfs(treeData, targetNode.messageId);
-    if (!targetPathResult) {
-        console.error('----> [handleNodeClick] Could not find path to target node. Aborting.');
-        return;
-    }
+    if (!targetPathResult) { /* ... error handling ... */ return; }
     const targetPath = targetPathResult.path.split('->');
-    console.log('----> [handleNodeClick] Target Path:', targetPath.join(' -> '));
 
-    // 2. Get Current Path
     const currentPromptId = findCurrentActivePromptId();
-    if (!currentPromptId) {
-        console.error('----> [handleNodeClick] Could not determine current location. Aborting.');
-        return;
-    }
+    if (!currentPromptId) { /* ... error handling ... */ return; }
     const currentPathResult = findNodeAndPathDfs(treeData, currentPromptId);
     const currentPath = currentPathResult ? currentPathResult.path.split('->') : [currentPromptId];
-    console.log('----> [handleNodeClick] Current Path:', currentPath.join(' -> '));
 
-    // 3. Find the Fork (Common Ancestor)
     let forkIndex = -1;
     while (
         forkIndex + 1 < currentPath.length &&
@@ -1087,35 +1060,93 @@ async function handleNodeClick(targetNode) {
         forkIndex++;
     }
     const forkPointId = currentPath[forkIndex];
-    console.log(`----> [handleNodeClick] Fork point identified at index ${forkIndex}: "${forkPointId}"`);
-
-    // 4. Determine Navigation Steps
     const navigationSteps = targetPath.slice(forkIndex + 1);
-    console.log('----> [handleNodeClick] Navigation plan:', navigationSteps);
+    console.log(`----> [handleNodeClick - ${actionType}] Navigation plan:`, navigationSteps.join(' -> ') || 'None');
+    // --- End of the "Fresh Start" block ---
 
-    if (navigationSteps.length === 0) {
-        console.log('----> [handleNodeClick] Target is on the current path or is the current node. No navigation needed.');
-    } else {
-        // 5. Execute Navigation
+    if (navigationSteps.length > 0) {
         let parentForStep = forkPointId;
         for (const step of navigationSteps) {
-            await executeNavigationStep(parentForStep, step);
-            parentForStep = step; // The current step becomes the parent for the next
+            // A. ATTEMPT TO SCROLL the parent into view.
+            const scrollSuccess = scrollToPromptById(parentForStep);
+
+            // B. HANDLE SCROLL FAILURE with a recursive retry.
+            if (!scrollSuccess) {
+                if (isRetry) {
+                    const message = `Automatic retry failed: Could not scroll to parent "${parentForStep}".`;
+                    console.error(`----> [handleNodeClick - ${actionType}] ABORTING.`, message);
+                    showToast(message, 7000);
+                    return;
+                }
+                const message = `Scroll failed. Automatically retrying navigation...`;
+                console.warn(`----> [handleNodeClick - ${actionType}] Scroll to parent failed. Triggering automatic retry.`);
+                showToast(message, 3000);
+                await sleep(1000);
+                handleNodeClick(targetNode, true); // Recursive "fresh start"
+                return;
+            }
+
+            await sleep(500); // Give a moment for the scroll to settle.
+
+            // C. ATTEMPT the navigation step.
+            const navSuccess = await executeNavigationStep(parentForStep, step);
+            
+            // D. HANDLE NAVIGATION FAILURE with a recursive retry.
+            if (!navSuccess) {
+                if (isRetry) {
+                    const message = `Automatic retry failed at step to "${step}".`;
+                    console.error(`----> [handleNodeClick - ${actionType}] ABORTING.`, message);
+                    showToast(message, 7000);
+                    return;
+                }
+                const message = `Navigation step failed. Automatically retrying...`;
+                console.warn(`----> [handleNodeClick - ${actionType}] Navigation click failed. Triggering automatic retry.`);
+                showToast(message, 3000);
+                await sleep(1000);
+                handleNodeClick(targetNode, true); // Recursive "fresh start"
+                return;
+            }
+            
+            parentForStep = step;
         }
     }
 
-    // 6. Finalize
-    console.log(`----> [handleNodeClick] Navigation complete. Scrolling to final destination: ${targetNode.messageId}`);
-    scrollToPromptById(targetNode.messageId);
+    // 6. Finalize: The final scroll to the destination.
+    console.log(`----> [handleNodeClick - ${actionType}] Navigation complete. Scrolling to final destination: ${targetNode.messageId}`);
+    const finalScrollSuccess = scrollToPromptById(targetNode.messageId);
+
+    // Handle the edge case where even the final scroll fails after a successful navigation.
+    if (!finalScrollSuccess && !isRetry) {
+        console.warn(`----> [handleNodeClick - ${actionType}] Final scroll failed. Triggering one last retry.`);
+        await sleep(1000);
+        handleNodeClick(targetNode, true);
+    }
 }
 
-  function scrollToPrompt(idx) {
-    const prompts = getUserPrompts();
-    if (prompts[idx]) {
-      prompts[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      updateActiveButton(idx);
+/**
+ * Scrolls the page to the prompt with the given messageId and updates the UI.
+ * Returns true on success, false if the element could not be found.
+ * @param {string} messageId The messageId of the prompt to scroll to.
+ * @returns {boolean} True if the scroll was successful, false otherwise.
+ */
+function scrollToPromptById(messageId) {
+    const targetPromptElement = document.querySelector(`div[data-message-id="${messageId}"]`);
+    if (!targetPromptElement) {
+        console.error(`[scrollToPromptById] DOM Failure: Could not find prompt element with ID: ${messageId}`);
+        return false; // Signal failure
     }
-  }
+
+    console.log(`[scrollToPromptById] Scrolling to prompt: ${messageId}`);
+    targetPromptElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Also update the active button in the side-stack
+    const allPrompts = getUserPrompts();
+    const targetIndex = allPrompts.findIndex(p => p.dataset.messageId === messageId);
+    if (targetIndex !== -1) {
+        updateActiveButton(targetIndex);
+    }
+    return true; // Signal success
+}
 
   function renderButtons() {
     let stack = document.querySelector('.chatgptree-prompt-jump-stack');
