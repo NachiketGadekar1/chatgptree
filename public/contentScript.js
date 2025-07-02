@@ -1,3 +1,5 @@
+// --- START OF FILE contentScript.js ---
+
 console.log('ChatGPTree content script starting...');
 
 (function addPromptJumpButtons() {
@@ -13,13 +15,13 @@ console.log('ChatGPTree content script starting...');
   let autosaveInterval = null;
   let hasCreatedRootButton = false;
 
-  /**
+/**
  * Displays a temporary toast notification on the screen.
  * @param {string} message The message to display.
  * @param {number} [duration=5000] The time in ms for the toast to be visible.
+ * @param {'info' | 'error'} [type='error'] The type of toast for styling.
  */
-  function showToast(message, duration = 5000) {
-    // Remove any existing toast to prevent stacking
+  function showToast(message, duration = 5000, type = 'error') {
     const existingToast = document.querySelector('.chatgptree-toast-notification');
     if (existingToast) {
       existingToast.remove();
@@ -27,18 +29,16 @@ console.log('ChatGPTree content script starting...');
 
     const toast = document.createElement('div');
     toast.className = 'chatgptree-toast-notification';
+    toast.classList.add(type); // Add the type class for styling
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    // Animate it in with a slight delay to ensure CSS transition is applied
     setTimeout(() => {
       toast.classList.add('visible');
     }, 10);
 
-    // Set a timer to remove the toast
     setTimeout(() => {
       toast.classList.remove('visible');
-      // Remove the element from the DOM after the fade-out transition completes
       toast.addEventListener('transitionend', () => toast.remove(), { once: true });
     }, duration);
   }
@@ -499,12 +499,10 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
 /* --- MODIFIED: Toast Notification Styles --- */
       .chatgptree-toast-notification {
         position: fixed;
-        bottom: 24px; /* Position above the bottom edge */
-        left: 50%;   /* Center horizontally */
+        bottom: 24px;
+        left: 50%;
         z-index: 100000;
-        background: rgba(239, 68, 68, 0.95); /* Red for error */
         color: #ffffff;
-        border: 2px solid #f87171;
         border-radius: 12px;
         padding: 12px 20px;
         font-size: 0.95rem;
@@ -514,16 +512,46 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
         text-align: center;
         pointer-events: none;
         opacity: 0;
-        /* Start below the final position and centered */
         transform: translate(-50%, 40px);
         transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       }
+      .chatgptree-toast-notification.info {
+        background: rgba(52, 53, 65, 0.95);
+        border: 2px solid #6ee7b7;
+      }
+      .chatgptree-toast-notification.error {
+        background: rgba(239, 68, 68, 0.95);
+        border: 2px solid #f87171;
+      }
       .chatgptree-toast-notification.visible {
         opacity: 1;
-        /* Animate to the final position */
         transform: translate(-50%, 0);
       }
-      /* --- End of Modified Styles --- */
+      
+      /* --- FIXED: Message Glow Highlight using Pseudo-Element --- */
+      @keyframes chatgptree-glow-fade {
+        0% { box-shadow: 0 0 16px 6px rgba(110, 231, 183, 0.6); opacity: 1; }
+        100% { box-shadow: 0 0 0 0 rgba(110, 231, 183, 0); opacity: 0; }
+      }
+      
+      .chatgptree-bubble-highlight {
+        position: relative !important; /* Needed for the pseudo-element to be positioned correctly */
+        z-index: 1 !important;
+      }
+
+      .chatgptree-bubble-highlight::before {
+        content: '' !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        border-radius: 12px !important; /* Matches ChatGPT's rounding */
+        z-index: -1 !important; /* Sits BEHIND the content */
+        pointer-events: none !important; /* Doesn't interfere with clicks */
+        animation: chatgptree-glow-fade 2.5s ease-out forwards !important;
+      }
+      /* --- End of Fixed Styles --- */
       
       .chatgptree-prompt-jump-stack {
         position: fixed;
@@ -877,27 +905,52 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     );
   }
 
-  /**
- * Scrolls the page to the prompt with the given messageId and updates the UI.
+/**
+ * Scrolls the page to the prompt with the given messageId and highlights its container.
+ * This is the single, consolidated function that handles scrolling and highlighting.
+ *
  * @param {string} messageId The messageId of the prompt to scroll to.
+ * @param {boolean} [isFinalDestination=false] If true, applies a temporary highlight.
+ * @returns {boolean} True if the scroll was successful, false otherwise.
  */
-  function scrollToPromptById(messageId) {
-    const targetPromptElement = document.querySelector(`div[data-message-id="${messageId}"]`);
-    if (!targetPromptElement) {
-        console.error(`[scrollToPromptById] Could not find prompt element with ID: ${messageId}`);
-        return;
+function scrollToPromptById(messageId, isFinalDestination = false) {
+    // Start by finding the core message element, which is our most reliable anchor.
+    const targetMessageDiv = document.querySelector(`div[data-message-id="${messageId}"]`);
+    if (!targetMessageDiv) {
+        console.error(`[scrollToPromptById] DOM Failure: Could not find prompt container element with ID: ${messageId}`);
+        return false;
+    }
+
+    // --- Highlight Logic using the robust pseudo-element method ---
+    if (isFinalDestination) {
+        // From our anchor, find the ideal parent container to highlight (the whole message "turn").
+        // We escape the slash in "group/turn-messages" for querySelector.
+        let elementToHighlight = targetMessageDiv.closest('div.group\\/turn-messages');
+
+        if (elementToHighlight) {
+            console.log(`%c[scrollToPromptById] Highlighting final destination container for: ${messageId}`, 'color: #34d399', elementToHighlight);
+        } else {
+            // If the ideal container isn't found, fall back to the message div itself.
+            console.warn(`[scrollToPromptById] Could not find 'group/turn-messages' parent for ${messageId}. Highlighting the message div as a fallback.`);
+            elementToHighlight = targetMessageDiv;
+        }
+        
+        // This trick removes the class and re-adds it to restart the animation.
+        elementToHighlight.classList.remove('chatgptree-bubble-highlight');
+        void elementToHighlight.offsetWidth; // Force browser reflow
+        elementToHighlight.classList.add('chatgptree-bubble-highlight');
     }
 
     console.log(`[scrollToPromptById] Scrolling to prompt: ${messageId}`);
-    targetPromptElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    // Also update the active button in the side-stack
     const allPrompts = getUserPrompts();
     const targetIndex = allPrompts.findIndex(p => p.dataset.messageId === messageId);
     if (targetIndex !== -1) {
         updateActiveButton(targetIndex);
     }
-  }
+    return true;
+}
 
 
 /**
@@ -1026,116 +1079,79 @@ async function handleNodeClick(targetNode, isRetry = false) {
     console.log(`%c----> [handleNodeClick - ${actionType}] Starting navigation to: ${targetNode.messageId}`, 'font-weight: bold; color: #6ee7b7;');
 
     if (!isRetry) {
+        // --- NEW: Show "Navigating..." toast on initial click ---
+        showToast("Navigating...", 500, 'info');
         toggleTreeOverlay();
     }
 
-    // --- OPTIMIZATION 1: PRE-EMPTIVE SHORTCUT ---
-    // Before doing anything complex, check if the target is already in the DOM.
     if (document.querySelector(`div[data-message-id="${targetNode.messageId}"]`)) {
         console.log('%c----> [OPTIMIZATION] Target is already in DOM. Taking pre-emptive shortcut.', 'font-weight: bold; color: green;');
-        scrollToPromptById(targetNode.messageId);
+        scrollToPromptById(targetNode.messageId, true); // It's the final destination
         return;
     }
-    // ---
 
-    // --- Start of the "Fresh Start" block ---
     const targetPathResult = findNodeAndPathDfs(treeData, targetNode.messageId);
-    if (!targetPathResult) { /* ... */ return; }
+    if (!targetPathResult) { return; }
     const targetPath = targetPathResult.path.split('->');
-
     const currentPromptId = findCurrentActivePromptId();
-    if (!currentPromptId) { /* ... */ return; }
+    if (!currentPromptId) { return; }
     const currentPathResult = findNodeAndPathDfs(treeData, currentPromptId);
     const currentPath = currentPathResult ? currentPathResult.path.split('->') : [currentPromptId];
-
     let forkIndex = -1;
-    while (
-        forkIndex + 1 < currentPath.length &&
-        forkIndex + 1 < targetPath.length &&
-        currentPath[forkIndex + 1] === targetPath[forkIndex + 1]
-    ) {
+    while (forkIndex + 1 < currentPath.length && forkIndex + 1 < targetPath.length && currentPath[forkIndex + 1] === targetPath[forkIndex + 1]) {
         forkIndex++;
     }
     const forkPointId = currentPath[forkIndex];
     const navigationSteps = targetPath.slice(forkIndex + 1);
     console.log(`----> [handleNodeClick - ${actionType}] Navigation plan:`, navigationSteps.join(' -> ') || 'None');
-    // --- End of the "Fresh Start" block ---
-
+    
     if (navigationSteps.length > 0) {
         let parentForStep = forkPointId;
         for (const step of navigationSteps) {
-            const scrollSuccess = scrollToPromptById(parentForStep);
+            // Scroll to parent is NOT the final destination
+            const scrollSuccess = scrollToPromptById(parentForStep, false); 
 
             if (!scrollSuccess) {
-                if (isRetry) { /* ... */ return; }
-                showToast(`Navigation failed. Automatically retrying...`, 3000);
-                // --- OPTIMIZATION: Reduced sleep time ---
+                if (isRetry) { return; }
+                showToast(`Navigation failed. Automatically retrying...`, 3000, 'error');
                 await sleep(750); 
                 handleNodeClick(targetNode, true);
                 return;
             }
 
-            // --- OPTIMIZATION: Reduced sleep time ---
             await sleep(250);
 
             const navSuccess = await executeNavigationStep(parentForStep, step);
             
             if (!navSuccess) {
-                if (isRetry) { /* ... */ return; }
-                showToast(`Navigation step failed. Automatically retrying...`, 3000);
-                // --- OPTIMIZATION: Reduced sleep time ---
+                if (isRetry) { return; }
+                showToast(`Navigation step failed. Automatically retrying...`, 3000, 'error');
                 await sleep(750);
                 handleNodeClick(targetNode, true);
                 return;
             }
 
-            // --- OPTIMIZATION 2: OPPORTUNISTIC SHORTCUT ---
             const finalTargetElement = document.querySelector(`div[data-message-id="${targetNode.messageId}"]`);
             if (finalTargetElement) {
-                console.log(`%c----> [OPTIMIZATION] Final target ${targetNode.messageId} is now in the DOM! Taking opportunistic shortcut.`, 'font-weight: bold; color: cyan;');
-                await sleep(100); // Very short pause for UI to settle before final scroll
-                scrollToPromptById(targetNode.messageId);
+                console.log(`%c----> [OPTIMIZATION] Shortcut successful.`, 'font-weight: bold; color: cyan;');
+                await sleep(100);
+                scrollToPromptById(targetNode.messageId, true); // It's the final destination
                 return;
             }
-            // ---
             
             parentForStep = step;
         }
     }
 
     console.log(`----> [handleNodeClick - ${actionType}] Navigation complete. Scrolling to final destination: ${targetNode.messageId}`);
-    const finalScrollSuccess = scrollToPromptById(targetNode.messageId);
+    // The final scroll IS the final destination
+    const finalScrollSuccess = scrollToPromptById(targetNode.messageId, true); 
 
     if (!finalScrollSuccess && !isRetry) {
         console.warn(`----> [handleNodeClick - ${actionType}] Final scroll failed. Triggering one last retry.`);
-        await sleep(250);
+        await sleep(750);
         handleNodeClick(targetNode, true);
     }
-}
-
-/**
- * Scrolls the page to the prompt with the given messageId and updates the UI.
- * Returns true on success, false if the element could not be found.
- * @param {string} messageId The messageId of the prompt to scroll to.
- * @returns {boolean} True if the scroll was successful, false otherwise.
- */
-function scrollToPromptById(messageId) {
-    const targetPromptElement = document.querySelector(`div[data-message-id="${messageId}"]`);
-    if (!targetPromptElement) {
-        console.error(`[scrollToPromptById] DOM Failure: Could not find prompt element with ID: ${messageId}`);
-        return false; // Signal failure
-    }
-
-    console.log(`[scrollToPromptById] Scrolling to prompt: ${messageId}`);
-    targetPromptElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Also update the active button in the side-stack
-    const allPrompts = getUserPrompts();
-    const targetIndex = allPrompts.findIndex(p => p.dataset.messageId === messageId);
-    if (targetIndex !== -1) {
-        updateActiveButton(targetIndex);
-    }
-    return true; // Signal success
 }
 
   function renderButtons() {
@@ -1155,14 +1171,12 @@ function scrollToPromptById(messageId) {
     stack = document.createElement('div');
     stack.className = 'chatgptree-prompt-jump-stack';
     
-    // --- FIX: Check if overlay is visible before showing the stack ---
     const overlay = document.querySelector('.chatgptree-overlay');
     if (overlay && overlay.classList.contains('visible')) {
         stack.style.display = 'none';
     }
     
     prompts.forEach((prompt, i) => {
-      // console.log('Creating button for prompt', i + 1);
       const btn = document.createElement('button');
       btn.className = 'chatgptree-prompt-jump-btn';
       
@@ -1181,11 +1195,18 @@ function scrollToPromptById(messageId) {
       btnContent.appendChild(preview);
       btn.appendChild(btnContent);
       
+      // --- THIS IS THE FIX ---
       btn.onclick = e => {
         e.preventDefault();
-        console.log('Clicking button', i + 1);
-        scrollToPrompt(i);
+        const promptId = prompt.dataset.messageId; // Get the correct message ID
+        if (promptId) {
+            console.log('Jumping to prompt with ID:', promptId);
+            // Call the correct function that handles highlighting
+            scrollToPromptById(promptId, true); 
+        }
       };
+      // --- END OF FIX ---
+
       if (isElementInViewport(prompt)) {
         btn.classList.add('active');
       }
@@ -1194,6 +1215,7 @@ function scrollToPromptById(messageId) {
     
     document.body.appendChild(stack);
   }
+
   function renderTreeButton() {
     let treeBtn = document.querySelector('.chatgptree-tree-btn');
     if (!treeBtn) {
@@ -1800,9 +1822,6 @@ function replaceEditMessageButtons() {
     svg.appendChild(viewportGroup);
     treeRoot.appendChild(svg);
 
-    // --- FIX: REMOVED THE CLONING ---
-    // Instead, we will directly re-initialize the panning events on the
-    // existing container and the newly created viewport group.
     initializePanningEvents(treeContainer, viewportGroup);
   }
 
