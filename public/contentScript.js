@@ -1,5 +1,3 @@
-// --- START OF FILE contentScript.js ---
-
 console.log('ChatGPTree content script starting...');
 
 (function addPromptJumpButtons() {
@@ -14,10 +12,6 @@ console.log('ChatGPTree content script starting...');
   let isNewlyCreatedChat = false;
   let autosaveInterval = null;
   let hasCreatedRootButton = false;
-
-  // =================================================================
-// Storage Helper Functions
-// =================================================================
 
 /**
  * Serializes the treeData object so it can be stored as JSON.
@@ -93,10 +87,6 @@ async function loadTreeFromStorage(chatId) {
     return null;
   }
 }
-
-// =================================================================
-// NEW: Tree Search Function (DFS)
-// =================================================================
 
 /**
  * Finds a node by its messageId and returns the node data along with the
@@ -282,7 +272,6 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
         autosaveInterval = null;
       }
 
-      // --- NEW LOADING LOGIC ---
       if (isNewlyCreatedChat) {
         console.log('@@@@ CHAT TYPE DETECTED: Brand New Chat');
         isChatTrackable = true;
@@ -382,12 +371,6 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
     isInitialized = false;
   }
 
-
-  // =================================================================
-  // REPLACEMENT FOR startUrlWatcher / setupLifecycleManager
-  // This version uses a robust, lightweight polling loop with
-  // requestAnimationFrame for maximum compatibility and efficiency.
-  // =================================================================
   function setupLifecycleManager() {
     // --- State for the new detection logic ---
     let isCurrentlyOnNewChatPage = false;
@@ -986,10 +969,7 @@ function replaceEditMessageButtons() {
             }
         }
     });
-}
-// ===============================================================
-// <<< MODIFICATION END >>>
-// ===============================================================
+  }
 
   function createTreeOverlay() {
     let overlay = document.querySelector('.chatgptree-overlay');
