@@ -51,7 +51,7 @@ function injectStyles() {
       .chatgptree-bubble-highlight { position: relative !important; z-index: 1 !important; }
       .chatgptree-bubble-highlight::before {
         content: '' !important; position: absolute !important; top: 0 !important; left: 0 !important;
-        right: 0 !important; bottom: 0 !important; border-radius: 12px !important; z-index: -1 !important;
+        right: 0 !important; bottom: 0 !important; border-radius: inherit !important; z-index: -1 !important;
         pointer-events: none !important; animation: chatgptree-glow-fade 2.5s ease-out forwards !important;
       }
       .chatgptree-prompt-jump-stack {
@@ -71,7 +71,7 @@ function injectStyles() {
       }
       .chatgptree-prompt-jump-btn .index {
         position: relative; min-width: 36px; height: 36px; display: flex; align-items: center;
-        justify-content: center; z-index: 1;
+        justify-content: center; z-index: 1; line-height: 1;
       }
       .chatgptree-prompt-jump-btn .preview {
         padding: 0 16px 0 4px; font-size: 0.9rem; font-weight: normal; opacity: 0;
@@ -83,11 +83,15 @@ function injectStyles() {
       .chatgptree-prompt-jump-btn:hover .preview { opacity: 1; transform: translateX(0); }
       .chatgptree-prompt-jump-btn.active .btn-content { background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
       .chatgptree-tree-btn {
-        position: fixed; top: 70px; right: 24px; z-index: 99999; width: 36px; height: 36px;
-        padding: 0; margin: 0; border: none; background: rgba(35, 39, 47, 0.9); color: #6ee7b7;
-        border: 2px solid #6ee7b7; border-radius: 18px; font-size: 1rem; font-weight: 600;
+        position: fixed; top: 70px; right: 24px; z-index: 99999;
+        height: 36px;
+        padding: 0 12px;
+        gap: 6px;
+        margin: 0; border: none; background: rgba(35, 39, 47, 0.9); color: #6ee7b7;
+        border: 2px solid #6ee7b7; border-radius: 18px; font-size: 0.9rem; font-weight: 600;
         cursor: pointer; outline: none; display: flex; align-items: center; justify-content: center;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        white-space: nowrap;
       }
       .chatgptree-tree-btn:hover, .chatgptree-tree-btn.active { background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
       .chatgptree-tree-btn.disabled {
@@ -122,9 +126,9 @@ function injectStyles() {
       @media (max-width: 768px) {
         .chatgptree-prompt-jump-stack { right: 12px; }
         .chatgptree-prompt-jump-btn, .chatgptree-prompt-jump-btn .btn-content { min-width: 32px; height: 32px; }
-        .chatgptree-prompt-jump-btn .index { min-width: 32px; height: 32px; font-size: 0.9rem; }
+        .chatgptree-prompt-jump-btn .index { min-width: 32px; height: 32px; font-size: 0.9rem; line-height: 1; }
         .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
-        .chatgptree-tree-btn { right: 12px; width: 32px; height: 32px; font-size: 0.9rem; }
+        .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
       }
     `;
     document.head.appendChild(style);
@@ -227,12 +231,12 @@ function scrollToPromptById(messageId, isFinalDestination = false) {
   }
 
   if (isFinalDestination) {
-      let elementToHighlight = targetMessageDiv.closest('div.group\\/turn-messages');
-      if (!elementToHighlight) {
-          elementToHighlight = targetMessageDiv;
-      }
+      // Find the specific message bubble inside the container, which has a background color class.
+      // Fall back to the main message container if the bubble isn't found.
+      const elementToHighlight = targetMessageDiv.querySelector('div.bg-token-message-surface') || targetMessageDiv;
+
       elementToHighlight.classList.remove('chatgptree-bubble-highlight');
-      void elementToHighlight.offsetWidth;
+      void elementToHighlight.offsetWidth; // Force reflow to restart animation
       elementToHighlight.classList.add('chatgptree-bubble-highlight');
   }
 
@@ -247,14 +251,14 @@ function scrollToPromptById(messageId, isFinalDestination = false) {
 }
 
 /**
- * Renders the main 'T' button to open the tree view.
+ * Renders the main 'Tree' button to open the tree view.
  */
 function renderTreeButton() {
   let treeBtn = document.querySelector('.chatgptree-tree-btn');
   if (!treeBtn) {
     treeBtn = document.createElement('button');
     treeBtn.className = 'chatgptree-tree-btn';
-    treeBtn.textContent = 'T';
+    treeBtn.textContent = '🌳 Tree';
     document.body.appendChild(treeBtn);
   }
 
