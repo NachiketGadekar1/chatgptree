@@ -73,27 +73,31 @@
       }
   }
 
-  /**
-   * Cleans up all injected UI and listeners before a page navigation.
-   */
-  async function cleanup() {
-    console.log('Running cleanup...');
-    if (isChatTrackable && currentChatId) {
-      await saveTreeToStorage(currentChatId, treeData);
-    }
-    if (autosaveInterval) clearInterval(autosaveInterval);
-
-    document.querySelector('.chatgptree-prompt-jump-stack')?.remove();
-    document.querySelector('.chatgptree-tree-btn')?.remove();
-    document.querySelector('.chatgptree-overlay')?.remove();
-    
-    treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
-    viewState = { x: 0, y: 0, scale: 0.75, isInitialized: false };
-    hasCreatedRootButton = false;
-
-    if (observer) observer.disconnect();
-    isInitialized = false;
+/**
+ * Cleans up all injected UI and listeners before a page navigation.
+ */
+async function cleanup() {
+  console.log('Running cleanup on navigation...');
+  if (isChatTrackable && currentChatId) {
+    await saveTreeToStorage(currentChatId, treeData);
   }
+  if (autosaveInterval) clearInterval(autosaveInterval);
+
+  // Remove all UI elements created by the script
+  document.querySelector('.chatgptree-prompt-jump-stack')?.remove();
+  document.querySelector('.chatgptree-tree-btn')?.remove();
+  document.querySelector('.chatgptree-overlay')?.remove();
+  
+  // FIX: Thoroughly reset all state variables to prevent data from leaking between chats.
+  // This is the most critical part for preventing "ghost nodes".
+  treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
+  viewState = { x: 0, y: 0, scale: 1, isInitialized: false }; // Completely reset view state
+  hasCreatedRootButton = false;
+
+  // Disconnect the observer to stop it from firing on the old page content
+  if (observer) observer.disconnect();
+  isInitialized = false;
+}
 
   /**
    * Sets up the main URL polling loop to detect navigation between chats.
@@ -166,6 +170,7 @@
   // ============================================================================
   window.getChatGPTreeData = () => serializeTreeForStorage(treeData);
   window.searchChatGPTree = (targetMessageId) => findNodeAndPathDfs(treeData, targetMessageId);
+  window.getChatGPTreeViewState = () => viewState; // <-- ADD THIS LINE
 
   // ============================================================================
   // INITIALIZATION

@@ -106,7 +106,7 @@ function injectStyles() {
       }
       .chatgptree-overlay.visible { display: flex; }
       .chatgptree-overlay-title {
-        position: absolute; top: 25px; left: 50%; transform: translateX(-50%); color: #6ee7b7;
+        position: absolute; top: 50px; left: 50%; transform: translateX(-50%); color: #6ee7b7;
         font-size: 24px; font-weight: 600; pointer-events: none; user-select: none;
         -webkit-user-select: none; -moz-user-select: none; text-shadow: none;
       }
@@ -135,58 +135,6 @@ function injectStyles() {
     `;
     document.head.appendChild(style);
 }
-
-/**
- * Renders the floating jump-to-prompt buttons on the side of the screen.
- */
-function renderButtons() {
-  let stack = document.querySelector('.chatgptree-prompt-jump-stack');
-  if (stack) stack.remove();
-
-  const prompts = getUserPrompts();
-  updateTreeData(prompts);
-
-  if (prompts.length < 2) {
-    return;
-  }
-
-  stack = document.createElement('div');
-  stack.className = 'chatgptree-prompt-jump-stack';
-
-  const overlay = document.querySelector('.chatgptree-overlay');
-  if (overlay && overlay.classList.contains('visible')) {
-      stack.style.display = 'none';
-  }
-
-  prompts.forEach((prompt, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'chatgptree-prompt-jump-btn';
-    const btnContent = document.createElement('div');
-    btnContent.className = 'btn-content';
-    const index = document.createElement('span');
-    index.className = 'index';
-    index.textContent = (i + 1).toString();
-    const preview = document.createElement('span');
-    preview.className = 'preview';
-    preview.textContent = getPromptPreview(prompt, 100);
-    btnContent.appendChild(index);
-    btnContent.appendChild(preview);
-    btn.appendChild(btnContent);
-    btn.onclick = e => {
-      e.preventDefault();
-      const promptId = prompt.dataset.messageId;
-      if (promptId) {
-          scrollToPromptById(promptId, true);
-      }
-    };
-
-    // REMOVED logic that added the .active class
-    stack.appendChild(btn);
-  });
-
-  document.body.appendChild(stack);
-}
-
 
 /**
  * Finds all user prompts on the page using a series of selectors.
@@ -259,7 +207,6 @@ function renderButtons() {
   document.body.appendChild(stack);
 }
 
-
 /**
  * Scrolls the page to the prompt with the given messageId and highlights it.
  * @param {string} messageId The messageId of the prompt to scroll to.
@@ -318,8 +265,14 @@ function renderTreeButton() {
  * Replaces the default "Edit" pencil icon with our "Root" or "Branch" button.
  */
 function replaceEditMessageButtons() {
-    const enabledBackgroundColor = '#6ee7b7';
-    const enabledTextColor = '#23272f';
+    // Style constants for the enabled button, to match jump buttons' theme
+    const enabledDefaultBg = 'rgba(35, 39, 47, 0.9)';
+    const enabledDefaultColor = '#6ee7b7';
+    const enabledDefaultBorder = '2px solid #6ee7b7';
+    const enabledHoverBg = '#6ee7b7';
+    const enabledHoverColor = '#23272f';
+
+    // Style constants for the disabled "Root" button
     const disabledBackgroundColor = '#d1d5db';
     const disabledTextColor = '#6b7280';
 
@@ -328,43 +281,55 @@ function replaceEditMessageButtons() {
     editButtons.forEach((button) => {
         button.setAttribute('data-chatgptree-modified', 'true');
         button.classList.remove('hover:bg-token-bg-secondary');
-        button.style.border = 'none';
+        button.style.borderRadius = '18px'; // Set a consistent pill shape
+
         const innerSpan = button.querySelector('span');
+        if (!innerSpan) return; // Skip if the button structure is unexpected
+
+        // Apply common styling to the inner span for consistent text display
+        innerSpan.classList.remove('w-8', 'justify-center');
+        innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
+        innerSpan.style.fontSize = '14px';
+        innerSpan.style.fontWeight = '500';
+        innerSpan.style.whiteSpace = 'nowrap';
+        
+        // Add smooth transitions for hover effects
+        button.style.transition = 'background-color 0.2s ease, border-color 0.2s ease';
+        innerSpan.style.transition = 'color 0.2s ease';
 
         if (!hasCreatedRootButton) {
+            // Style the very first prompt's button as a disabled "Root Message"
             button.setAttribute('title', 'Cannot create a branch from the root message.');
             button.setAttribute('aria-label', 'Root message, cannot create a branch.');
             button.style.backgroundColor = disabledBackgroundColor;
-            button.style.borderRadius = '18px';
+            button.style.border = 'none';
             button.style.opacity = '0.7';
             button.style.cursor = 'not-allowed';
             button.style.pointerEvents = 'none';
 
-            if (innerSpan) {
-                innerSpan.classList.remove('w-8', 'justify-center');
-                innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
-                innerSpan.style.color = disabledTextColor;
-                innerSpan.style.fontSize = '14px';
-                innerSpan.style.fontWeight = '500';
-                innerSpan.style.whiteSpace = 'nowrap';
-                innerSpan.innerHTML = '🪵 Root Message';
-            }
+            innerSpan.style.color = disabledTextColor;
+            innerSpan.innerHTML = '🪵 Root Message';
             hasCreatedRootButton = true;
         } else {
-            button.setAttribute('title', 'Create a branch here');
+            // Style all subsequent buttons as active "Create a branch here" buttons
+            button.removeAttribute('title'); // <-- TOOLTIP REMOVED
             button.setAttribute('aria-label', 'Create a branch here');
-            button.style.backgroundColor = enabledBackgroundColor;
-            button.style.borderRadius = '18px';
 
-            if (innerSpan) {
-                innerSpan.classList.remove('w-8', 'justify-center');
-                innerSpan.classList.add('w-auto', 'px-3', 'gap-2');
-                innerSpan.style.color = enabledTextColor;
-                innerSpan.style.fontSize = '14px';
-                innerSpan.style.fontWeight = '500';
-                innerSpan.style.whiteSpace = 'nowrap';
-                innerSpan.innerHTML = '🪵 Create a branch here';
-            }
+            // Set initial style to match the jump buttons' default (dark) state
+            button.style.backgroundColor = enabledDefaultBg;
+            button.style.border = enabledDefaultBorder;
+            innerSpan.style.color = enabledDefaultColor;
+            innerSpan.innerHTML = '🪵 Create a branch here';
+
+            // Add hover effects to match the jump buttons' hover (light) state
+            button.addEventListener('mouseover', () => {
+                button.style.backgroundColor = enabledHoverBg;
+                innerSpan.style.color = enabledHoverColor;
+            });
+            button.addEventListener('mouseout', () => {
+                button.style.backgroundColor = enabledDefaultBg;
+                innerSpan.style.color = enabledDefaultColor;
+            });
         }
     });
 }
@@ -435,4 +400,3 @@ function handleEscapeKey(e) {
     }
   }
 }
-// --- END OF FILE modules/ui.js ---

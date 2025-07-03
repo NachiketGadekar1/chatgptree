@@ -36,20 +36,26 @@ function findNodeAndPathDfs(treeDataObject, targetMessageId) {
 
 /**
  * Updates the in-memory treeData object based on the prompts found in the DOM.
- * @param {Array<HTMLElement>} prompts - An array of user prompt elements.
  */
 function updateTreeData(prompts) {
   prompts.forEach((prompt, i) => {
     const messageId = prompt.dataset.messageId;
     if (!treeData.nodes.has(messageId)) {
+      // FIX: Get the full, untruncated text content for data storage.
+      // The most reliable element containing the text is often a div with specific child structure.
+      const textContent = prompt.querySelector('div.text-token-text-primary')?.textContent || 
+                          prompt.textContent || 
+                          '';
+
       const node = {
         messageId,
-        text: getPromptPreview(prompt, 20),
+        text: textContent.trim(), // Store the full, clean text.
         parentId: null,
         children: [],
         x: 0,
         y: 0
       };
+
       if (treeData.branchStartId) {
         node.parentId = treeData.branchStartId;
         const parentNode = treeData.nodes.get(treeData.branchStartId);
@@ -65,7 +71,6 @@ function updateTreeData(prompts) {
     }
   });
 }
-
 // ============================================================================
 // SVG TREE VISUALIZATION
 // ============================================================================
@@ -123,33 +128,45 @@ function calculateNodePositions() {
  * @returns {SVGElement} The SVG group element for the node.
  */
 function createTreeNode(prompt, x, y) {
-    const NODE_RADIUS = 35;
+    const NODE_WIDTH = 160;
+    const NODE_HEIGHT = 60;
+    const NODE_RX = 15; // Corner radius
+
     const node = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     node.classList.add('chatgptree-node');
     node.setAttribute('transform', `translate(${x}, ${y})`);
+    node.style.cursor = 'pointer';
     node.onclick = () => handleNodeClick(prompt);
 
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    circle.setAttribute('r', NODE_RADIUS.toString());
-    circle.classList.add('chatgptree-node-circle');
-    // Simplified styling for brevity in this refactor
-    circle.setAttribute('fill', '#90cdf4');
-    circle.setAttribute('stroke', '#4299e1');
-    circle.setAttribute('stroke-width', '2.5');
+    // FIX: Add a <title> element. SVG uses this to create a native browser tooltip on hover.
+    const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    tooltip.textContent = prompt.text; // Use the full, non-truncated text for the tooltip
+    node.appendChild(tooltip);
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', String(-NODE_WIDTH / 2));
+    rect.setAttribute('y', String(-NODE_HEIGHT / 2));
+    rect.setAttribute('width', String(NODE_WIDTH));
+    rect.setAttribute('height', String(NODE_HEIGHT));
+    rect.setAttribute('rx', String(NODE_RX));
+    rect.setAttribute('ry', String(NODE_RX));
+    
+    // Style to match jump buttons (dark background, green border/text)
+    rect.setAttribute('fill', 'rgb(35, 39, 47)');
+    rect.setAttribute('stroke', '#6ee7b7');
+    rect.setAttribute('stroke-width', '2.5');
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.textContent = prompt.text.length > 11 ? prompt.text.substring(0, 11) + '...' : prompt.text;
+    // Display truncated text on the node itself for visual clarity
+    text.textContent = prompt.text.length > 18 ? prompt.text.substring(0, 18) + '...' : prompt.text;
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dy', '0.35em');
-    text.setAttribute('fill', '#1a202c');
+    text.setAttribute('fill', '#6ee7b7');
     text.setAttribute('font-size', '14px');
     text.style.pointerEvents = 'none';
 
-    node.appendChild(circle);
+    node.appendChild(rect);
     node.appendChild(text);
-
-    // Simplified: Hover effects removed for brevity in this example.
-    // The full logic from the original file can be pasted back here if needed.
 
     return node;
 }
@@ -165,8 +182,9 @@ function createTreeNode(prompt, x, y) {
 function createConnection(x1, y1, x2, y2) {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('chatgptree-node-connection');
-    const NODE_RADIUS = 35, VERTICAL_OFFSET = 50;
-    const d = `M ${x1} ${y1 + NODE_RADIUS} C ${x1} ${y1 + NODE_RADIUS + VERTICAL_OFFSET}, ${x2} ${y2 - NODE_RADIUS - VERTICAL_OFFSET}, ${x2} ${y2 - NODE_RADIUS}`;
+    const NODE_HALF_HEIGHT = 30; // Matches half the height of the new rectangle node
+    const VERTICAL_OFFSET = 50;
+    const d = `M ${x1} ${y1 + NODE_HALF_HEIGHT} C ${x1} ${y1 + NODE_HALF_HEIGHT + VERTICAL_OFFSET}, ${x2} ${y2 - NODE_HALF_HEIGHT - VERTICAL_OFFSET}, ${x2} ${y2 - NODE_HALF_HEIGHT}`;
     path.setAttribute('d', d);
     path.setAttribute('stroke', '#a0aec0');
     path.setAttribute('stroke-width', '2.5');
@@ -221,20 +239,29 @@ function updateTreeVisualization() {
  */
 function initializePanningEvents(container, viewportGroup) {
     function updateTransform() {
-      viewportGroup.setAttribute('transform', `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`);
+      const matrix = `matrix(${viewState.scale}, 0, 0, ${viewState.scale}, ${viewState.x}, ${viewState.y})`;
+      viewportGroup.setAttribute('transform', matrix);
     }
 
     if (!viewState.isInitialized) {
-        viewState.x = -10165.33; viewState.y = -548.32; viewState.scale = 6.07; // Default view
-        viewState.isInitialized = true;
+      // Applying your preferred default view state
+      viewState.x = -6010.084020079088;
+      viewState.y = -237.82964696926035;
+      viewState.scale = 4.027897042213525;
+      viewState.isInitialized = true;
     }
+
     updateTransform();
 
-    let lastMouseX = 0, lastMouseY = 0;
-    const panSpeed = 2.5;
+    let isPanning = false;
+    let panTicking = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    const panSpeed = 2.0; // Adjust this value to change panning speed
 
     function startPan(evt) {
       if (evt.button !== 0) return;
+      evt.preventDefault();
       container.classList.add('grabbing');
       isPanning = true;
       lastMouseX = evt.clientX;
@@ -245,21 +272,31 @@ function initializePanningEvents(container, viewportGroup) {
 
     function pan(evt) {
       if (!isPanning) return;
-      viewState.x += (evt.clientX - lastMouseX) * panSpeed;
-      viewState.y += (evt.clientY - lastMouseY) * panSpeed;
+      evt.preventDefault();
+      const deltaX = (evt.clientX - lastMouseX) * panSpeed;
+      const deltaY = (evt.clientY - lastMouseY) * panSpeed;
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
-      window.requestAnimationFrame(updateTransform);
+      viewState.x += deltaX;
+      viewState.y += deltaY;
+      if (!panTicking) {
+        window.requestAnimationFrame(() => {
+          updateTransform();
+          panTicking = false;
+        });
+        panTicking = true;
+      }
     }
 
     function endPan() {
+      if (!isPanning) return;
       container.classList.remove('grabbing');
       isPanning = false;
       document.removeEventListener('mousemove', pan);
       document.removeEventListener('mouseup', endPan);
     }
 
-    container.onwheel = (evt) => {
+    container.addEventListener('wheel', (evt) => {
       evt.preventDefault();
       const scaleChange = evt.deltaY > 0 ? 0.9 : 1.1;
       const newScale = viewState.scale * scaleChange;
@@ -267,12 +304,15 @@ function initializePanningEvents(container, viewportGroup) {
         const rect = container.getBoundingClientRect();
         const mouseX = evt.clientX - rect.left;
         const mouseY = evt.clientY - rect.top;
-        viewState.x = mouseX - ((mouseX - viewState.x) / viewState.scale * newScale);
-        viewState.y = mouseY - ((mouseY - viewState.y) / viewState.scale * newScale);
+        const svgX = (mouseX - viewState.x) / viewState.scale;
+        const svgY = (mouseY - viewState.y) / viewState.scale;
         viewState.scale = newScale;
+        viewState.x = mouseX - (svgX * newScale);
+        viewState.y = mouseY - (svgY * newScale);
         updateTransform();
       }
-    };
-    container.onmousedown = startPan;
+    }, { passive: false });
+
+    container.addEventListener('mousedown', startPan);
 }
 // --- END OF FILE modules/tree.js ---
