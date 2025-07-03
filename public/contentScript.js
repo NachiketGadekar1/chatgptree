@@ -58,10 +58,14 @@
 
       if (!isInitialized) {
         injectStyles();
-        setupObservers();
+        setupObservers(); // This is where the observer is set up, which is all we need.
         renderTreeButton();
         createTreeOverlay();
         isInitialized = true;
+        
+        // --- THIS IS THE FIX ---
+        // REMOVE any call to initCodeRunner() or processNewCodeBlocks() from here.
+        // The MutationObserver in setupObservers() will handle everything.
       }
 
       renderTreeButton();
