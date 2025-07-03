@@ -1,4 +1,3 @@
-// --- UPDATE manifest.json ---
 {
   "manifest_version": 3,
   "name": "chatgptree",
@@ -45,5 +44,19 @@
   ],
   "action": {
     "default_title": "Open chatgptree sidebar"
+  },
+   "web_accessible_resources": [
+    {
+      "resources": [ "runner.html", "runner_iframe.js" ],
+      "matches": [ "https://chat.openai.com/*", "https://chatgpt.com/*" ]
+    }
+  ],
+  "sandbox": {
+    "pages": [
+      "runner.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-inline'"
   }
 }

@@ -1,42 +1,28 @@
-// --- CREATE NEW FILE modules/runner.js ---
-
+// --- UPDATE modules/runner.js ---
 (function() {
   'use strict';
 
   const CLIENT_SIDE_LANGUAGES = ['html', 'javascript', 'js'];
 
-  /**
-   * Finds all code blocks on the page that haven't been processed yet and injects UI.
-   */
   function processNewCodeBlocks() {
     const codeBlocks = document.querySelectorAll('pre:not([data-chatgptree-runner-processed])');
     codeBlocks.forEach(injectRunnerUI);
   }
 
-  /**
-   * Injects the runner UI (e.g., a "Render" button) for a single code block.
-   * @param {HTMLPreElement} preElement The <pre> element containing the code.
-   */
   function injectRunnerUI(preElement) {
     preElement.setAttribute('data-chatgptree-runner-processed', 'true');
-
-    // Extract language from the header div provided by ChatGPT's UI
     const langDiv = preElement.querySelector('div > div:first-child');
     const lang = langDiv ? langDiv.textContent.toLowerCase().trim() : '';
 
     if (CLIENT_SIDE_LANGUAGES.includes(lang)) {
       const runnerContainer = document.createElement('div');
       runnerContainer.className = 'chatgptree-runner-container';
-
       const renderButton = document.createElement('button');
       renderButton.className = 'chatgptree-render-btn';
       renderButton.textContent = '▶️ Render';
-      renderButton.dataset.language = lang; // Store language for the handler
-
+      renderButton.dataset.language = lang;
       renderButton.addEventListener('click', handleRenderClick);
-
       runnerContainer.appendChild(renderButton);
-      // Insert the button container directly after the <pre> element
       preElement.insertAdjacentElement('afterend', runnerContainer);
     }
   }
@@ -54,18 +40,17 @@
       console.error('Could not find the <pre> element for this button.');
       return;
     }
-    
+
     // Allow toggling the output view
     const existingOutput = runnerContainer.nextElementSibling;
     if (existingOutput && existingOutput.classList.contains('chatgptree-output-container')) {
-        existingOutput.remove();
-        button.textContent = '▶️ Render';
-        return;
+      existingOutput.remove();
+      button.textContent = '▶️ Render';
+      return;
     }
 
     const code = preElement.querySelector('code')?.textContent || '';
     const language = button.dataset.language;
-
     if (!code) return;
 
     const outputContainer = document.createElement('div');
@@ -73,34 +58,32 @@
 
     const iframe = document.createElement('iframe');
     iframe.className = 'chatgptree-output-iframe';
-    iframe.sandbox = 'allow-scripts'; // Securely sandbox the iframe
+    
+    // The `sandbox` attribute is removed from here.
+    // The sandboxing is now correctly handled by the manifest.json file,
+    // which applies the sandbox and a special CSP to `runner.html`.
 
-    let srcDoc = '';
-    if (language === 'html') {
-      srcDoc = code;
-    } else if (language === 'javascript' || language === 'js') {
-      srcDoc = `
-        <!DOCTYPE html>
-        <html>
-          <head><title>JS Runner</title></head>
-          <body>
-            <script>${code}<\/script>
-          </body>
-        </html>
-      `;
-    }
+    // Set the source to our local extension file
+    iframe.src = chrome.runtime.getURL('runner.html');
 
-    iframe.srcdoc = srcDoc;
-
+    // Wait for the iframe to load before sending the message
+    iframe.onload = () => {
+      // Use postMessage to securely send data to the iframe
+      if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          type: 'EXECUTE_CODE',
+          code: code,
+          language: language
+        }, '*'); // Sending to a specific target is best, but '*' is safe for extension->extension communication.
+      }
+    };
+    
     outputContainer.appendChild(iframe);
-    // Insert the output container directly after the button container
     runnerContainer.insertAdjacentElement('afterend', outputContainer);
     button.textContent = '🔽 Hide Output';
   }
 
-  // Expose the main function to be called by contentScript.js
   window.chatGPTreeRunner = {
     processNewCodeBlocks
   };
-
 })();
