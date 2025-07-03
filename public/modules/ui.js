@@ -70,8 +70,10 @@ function injectStyles() {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); will-change: max-width, background-color, color;
       }
       .chatgptree-prompt-jump-btn .index {
-        position: relative; min-width: 36px; height: 36px; display: flex; align-items: center;
+        min-width: 36px; height: 36px; display: flex; align-items: center;
         justify-content: center; z-index: 1; line-height: 1;
+        position: relative;
+        left: -1px; /* Adjust this value. Negative moves left, positive moves right. */
       }
       .chatgptree-prompt-jump-btn .preview {
         padding: 0 16px 0 4px; font-size: 0.9rem; font-weight: normal; opacity: 0;
@@ -81,7 +83,7 @@ function injectStyles() {
         max-width: 400px; background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
       .chatgptree-prompt-jump-btn:hover .preview { opacity: 1; transform: translateX(0); }
-      .chatgptree-prompt-jump-btn.active .btn-content { background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+      /* REMOVED .active class styling */
       .chatgptree-tree-btn {
         position: fixed; top: 70px; right: 24px; z-index: 99999;
         height: 36px;
@@ -133,6 +135,58 @@ function injectStyles() {
     `;
     document.head.appendChild(style);
 }
+
+/**
+ * Renders the floating jump-to-prompt buttons on the side of the screen.
+ */
+function renderButtons() {
+  let stack = document.querySelector('.chatgptree-prompt-jump-stack');
+  if (stack) stack.remove();
+
+  const prompts = getUserPrompts();
+  updateTreeData(prompts);
+
+  if (prompts.length < 2) {
+    return;
+  }
+
+  stack = document.createElement('div');
+  stack.className = 'chatgptree-prompt-jump-stack';
+
+  const overlay = document.querySelector('.chatgptree-overlay');
+  if (overlay && overlay.classList.contains('visible')) {
+      stack.style.display = 'none';
+  }
+
+  prompts.forEach((prompt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'chatgptree-prompt-jump-btn';
+    const btnContent = document.createElement('div');
+    btnContent.className = 'btn-content';
+    const index = document.createElement('span');
+    index.className = 'index';
+    index.textContent = (i + 1).toString();
+    const preview = document.createElement('span');
+    preview.className = 'preview';
+    preview.textContent = getPromptPreview(prompt, 100);
+    btnContent.appendChild(index);
+    btnContent.appendChild(preview);
+    btn.appendChild(btnContent);
+    btn.onclick = e => {
+      e.preventDefault();
+      const promptId = prompt.dataset.messageId;
+      if (promptId) {
+          scrollToPromptById(promptId, true);
+      }
+    };
+
+    // REMOVED logic that added the .active class
+    stack.appendChild(btn);
+  });
+
+  document.body.appendChild(stack);
+}
+
 
 /**
  * Finds all user prompts on the page using a series of selectors.
@@ -198,24 +252,13 @@ function renderButtons() {
       }
     };
 
-    if (isElementInViewport(prompt)) {
-      btn.classList.add('active');
-    }
+    // REMOVED logic that added the .active class
     stack.appendChild(btn);
   });
 
   document.body.appendChild(stack);
 }
 
-/**
- * Toggles the 'active' class on the jump-to-prompt buttons.
- * @param {number} activeIndex - The index of the button to activate.
- */
-function updateActiveButton(activeIndex) {
-  document.querySelectorAll('.chatgptree-prompt-jump-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', i === activeIndex);
-  });
-}
 
 /**
  * Scrolls the page to the prompt with the given messageId and highlights it.
@@ -242,11 +285,7 @@ function scrollToPromptById(messageId, isFinalDestination = false) {
 
   targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-  const allPrompts = getUserPrompts();
-  const targetIndex = allPrompts.findIndex(p => p.dataset.messageId === messageId);
-  if (targetIndex !== -1) {
-      updateActiveButton(targetIndex);
-  }
+  // REMOVED call to updateActiveButton()
   return true;
 }
 
