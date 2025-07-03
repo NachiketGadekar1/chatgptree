@@ -1,7 +1,7 @@
 // --- UPDATE runner_iframe.js ---
 'use strict';
 
-// This function creates the two-panel layout (visual + console)
+// setupLayout() function remains the same.
 function setupLayout() {
   document.head.innerHTML = `
     <style>
@@ -14,27 +14,31 @@ function setupLayout() {
         background-color: #fff;
       }
       #visual-output {
-        flex: 1; /* Takes up available space */
+        flex: 1;
         padding: 8px;
         border-bottom: 1px solid #ccc;
-        overflow: auto; /* Add scrollbars if content is too big */
+        overflow: auto;
       }
       #console-log {
-        flex-basis: 100px; /* Start with a fixed height */
+        flex-basis: 100px;
         flex-shrink: 0;
-        background-color: #23272f; /* Dark background for terminal */
+        background-color: #23272f;
         color: #e5e5e5;
         padding: 8px;
         overflow-y: auto;
         font-family: monospace;
         font-size: 0.9rem;
-        resize: vertical; /* Allow user to resize the console panel */
+        resize: vertical;
       }
       .chatgptree-log-entry { 
         border-bottom: 1px solid #444; 
         padding: 4px 0;
         white-space: pre-wrap;
         word-break: break-all;
+      }
+      .chatgptree-log-alert {
+        color: #facc15; /* Yellow color for alerts */
+        font-weight: bold;
       }
     </style>
   `;
@@ -44,41 +48,39 @@ function setupLayout() {
   `;
 }
 
-// This function intercepts methods that could wipe the page
+// setupInterceptors() is now updated to handle alert().
 function setupInterceptors(visualOutputDiv, consoleLogDiv) {
-  // --- Intercept console.log ---
   const originalLog = console.log;
   console.log = function(...args) {
-    originalLog.apply(console, args); // Keep original behavior
+    originalLog.apply(console, args);
     const output = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)).join(' ');
     const logEntry = document.createElement('div');
     logEntry.className = 'chatgptree-log-entry';
     logEntry.textContent = output;
     consoleLogDiv.appendChild(logEntry);
-    consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight; // Auto-scroll to bottom
+    consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
   };
 
-  // --- Intercept document.write ---
-  // Redirect it to the visual output div
-  let buffer = '';
-  document.write = function(...args) {
-    buffer += args.join('');
-    visualOutputDiv.innerHTML = buffer;
-  }
-  document.writeln = function(...args) {
-    buffer += args.join('') + '\n';
-    visualOutputDiv.innerHTML = buffer;
-  }
+  // --- FIX: Intercept alert() ---
+  // This prevents the blocking popup and turns it into a log message.
+  window.alert = function(message) {
+    // We use our overridden console.log to display it in the terminal.
+    console.log(`[Alert]: ${message}`);
+    
+    // Add a specific class for styling alert messages differently.
+    const lastLog = consoleLogDiv.lastChild;
+    if (lastLog) {
+      lastLog.classList.add('chatgptree-log-alert');
+    }
+  };
 
-  // --- Intercept document.body.innerHTML ---
-  // This is the most important part. We redirect the setter.
+  let buffer = '';
+  document.write = function(...args) { buffer += args.join(''); visualOutputDiv.innerHTML = buffer; }
+  document.writeln = function(...args) { buffer += args.join('') + '\n'; visualOutputDiv.innerHTML = buffer; }
+
   Object.defineProperty(document.body, 'innerHTML', {
-    set: function(value) {
-      visualOutputDiv.innerHTML = value;
-    },
-    get: function() {
-      return visualOutputDiv.innerHTML;
-    },
+    set: function(value) { visualOutputDiv.innerHTML = value; },
+    get: function() { return visualOutputDiv.innerHTML; },
     configurable: true
   });
 }
@@ -95,21 +97,41 @@ window.addEventListener('message', (event) => {
     const visualOutput = document.getElementById('visual-output');
     const consoleLog = document.getElementById('console-log');
     
+    setupInterceptors(visualOutput, consoleLog);
+    
     try {
       if (language === 'javascript' || language === 'js') {
-        // Setup all interceptors BEFORE running the script
-        setupInterceptors(visualOutput, consoleLog);
-        
         const script = document.createElement('script');
         script.textContent = code;
-        document.head.appendChild(script); // Append to head to run before body is parsed
+        document.head.appendChild(script);
 
       } else if (language === 'html') {
-        visualOutput.innerHTML = code;
+        // --- ADDED DEBUGGING ---
+        console.log('[HTML Runner] Starting HTML processing.');
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(code, "text/html");
+
+        doc.querySelectorAll('style').forEach(style => document.head.appendChild(style));
+        console.log(`[HTML Runner] Found and appended ${doc.querySelectorAll('style').length} <style> tags.`);
+
+        visualOutput.innerHTML = doc.body.innerHTML;
+        console.log('[HTML Runner] Set visual output from parsed body.');
+
+        const scriptTags = doc.querySelectorAll('script');
+        console.log(`[HTML Runner] Found ${scriptTags.length} <script> tags to execute.`);
+
+        scriptTags.forEach((scriptTag, index) => {
+          const scriptCode = scriptTag.textContent;
+          console.log(`[HTML Runner] Processing script #${index + 1}. Content:`, scriptCode);
+          
+          const newScript = document.createElement('script');
+          newScript.textContent = scriptCode;
+          document.head.appendChild(newScript);
+          console.log(`[HTML Runner] Script #${index + 1} appended to head for execution.`);
+        });
       }
     } catch (e) {
-      consoleLog.style.color = 'red';
-      consoleLog.textContent = `Error: ${e.message}`;
+      console.log(`[Error]: ${e.message}`); // Use our logger to show errors
     }
   }
 });
