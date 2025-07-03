@@ -136,14 +136,10 @@ function injectStyles() {
       .chatgptree-runner-container {
         display: flex;
         justify-content: flex-start;
-        /* FIX: Changed negative margin-top to positive to prevent overlap and add space. */
         margin-top: 12px;
-        /* FIX: Added more bottom margin for better separation from the output iframe. */
         margin-bottom: 16px;
-        /* REMOVED the border-bottom for a cleaner look, as the iframe now has a strong border. */
       }
       .chatgptree-render-btn {
-        /* FIX: Restyled to match other UI buttons (e.g., Tree button) */
         display: inline-flex;
         align-items: center;
         height: 36px;
@@ -175,7 +171,88 @@ function injectStyles() {
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
-      /* --- END: Updated styles for Code Runner --- */
+      
+       /* --- START: Styles for Composer Overlay (with fix) --- */
+      .chatgptree-expand-btn {
+        margin-right: 8px;
+      }
+      .chatgptree-composer-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99998;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+        display: none; /* Hidden by default */
+        align-items: center;
+        justify-content: center;
+      }
+      .chatgptree-composer-overlay.visible {
+        display: flex; /* Show it */
+      }
+      .chatgptree-composer-container {
+        width: 80vw;
+        max-width: 900px;
+        height: 70vh;
+        background: #212121;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        position: relative;
+      }
+      .chatgptree-composer-title {
+        color: #6ee7b7;
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .chatgptree-composer-textarea {
+        flex-grow: 1;
+        width: 100%;
+        /* FIX: Change background to white and text to black for visibility */
+        background: #ffffff;
+        color: #111827; /* A standard dark gray/black */
+        border-radius: 8px;
+        border: 1px solid #d1d5db; /* A light gray border */
+        padding: 12px;
+        font-size: 1rem;
+        font-family: inherit;
+        resize: none;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .chatgptree-composer-textarea:focus {
+        border-color: #6ee7b7;
+      }
+      .chatgptree-composer-send-btn {
+        align-self: flex-end;
+        padding: 10px 24px;
+        border: none;
+        background-color: #6ee7b7;
+        color: #23272f;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s, transform 0.1s;
+      }
+      .chatgptree-composer-send-btn:hover {
+        background-color: #34d399;
+      }
+      .chatgptree-composer-send-btn:active {
+        transform: scale(0.98);
+      }
+      .chatgptree-composer-close-btn {
+        position: absolute; top: 16px; right: 16px; width: 32px; height: 32px;
+        background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        font-size: 24px; line-height: 1; padding-bottom: 2px; transition: all 0.2s ease;
+      }
+      .chatgptree-composer-close-btn:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.1); }
+      /* --- END: New styles for Composer Overlay --- */
     `;
     document.head.appendChild(style);
 }
@@ -443,4 +520,151 @@ function handleEscapeKey(e) {
       toggleTreeOverlay();
     }
   }
+}
+
+const EXPAND_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
+const COLLAPSE_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>`;
+
+// --- In modules/ui.js, add these new functions ---
+
+/**
+ * Renders the button that opens the composer overlay.
+ * It's idempotent, only creating the button if it doesn't exist.
+ */
+function renderExpandComposerButton() {
+    const actionsContainer = document.querySelector('[data-testid="composer-footer-actions"]');
+    if (!actionsContainer || actionsContainer.querySelector('.chatgptree-expand-btn')) {
+        return; // Exit if container not found or button already exists
+    }
+
+    const expandButton = document.createElement('button');
+    expandButton.type = 'button';
+    expandButton.className = 'composer-btn chatgptree-expand-btn';
+    expandButton.innerHTML = EXPAND_ICON_SVG;
+    expandButton.setAttribute('aria-label', 'Expand composer');
+    
+    // The button's only job is to open the overlay.
+    expandButton.onclick = toggleComposerOverlay;
+
+    actionsContainer.prepend(expandButton);
+}
+
+/**
+ * Creates the composer overlay and attaches its event listeners.
+ * This should only be called once during initialization.
+ */
+function createComposerOverlay() {
+    if (document.querySelector('.chatgptree-composer-overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'chatgptree-composer-overlay';
+    overlay.innerHTML = `
+      <div class="chatgptree-composer-container">
+        <h3 class="chatgptree-composer-title">Expanded Composer</h3>
+        <button class="chatgptree-composer-close-btn">×</button>
+        <textarea id="chatgptree-composer-textarea" placeholder="Type your message here..."></textarea>
+        <button id="chatgptree-composer-send-btn">Send Message</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const sendBtn = overlay.querySelector('#chatgptree-composer-send-btn');
+    const closeBtn = overlay.querySelector('.chatgptree-composer-close-btn');
+    const textarea = overlay.querySelector('#chatgptree-composer-textarea');
+
+    sendBtn.onclick = handleSendFromOverlay;
+    closeBtn.onclick = toggleComposerOverlay;
+    textarea.onkeydown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault(); // Prevent new line
+            handleSendFromOverlay();
+        }
+    };
+}
+
+/**
+ * Toggles the visibility of the composer overlay.
+ */
+function toggleComposerOverlay() {
+    const overlay = document.querySelector('.chatgptree-composer-overlay');
+    const textarea = overlay.querySelector('#chatgptree-composer-textarea');
+    if (!overlay || !textarea) return;
+
+    const isVisible = overlay.classList.toggle('visible');
+
+    if (isVisible) {
+        console.log('[ChatGPTree] Composer overlay opened.');
+        textarea.focus(); // Auto-focus the textarea for immediate typing
+        document.addEventListener('keydown', handleComposerEscapeKey);
+    } else {
+        console.log('[ChatGPTree] Composer overlay closed.');
+        document.removeEventListener('keydown', handleComposerEscapeKey);
+    }
+}
+
+/**
+ * Handles the 'Escape' key to close the composer overlay.
+ */
+function handleComposerEscapeKey(e) {
+  if (e.key === 'Escape') {
+    toggleComposerOverlay();
+  }
+}
+
+/**
+ * Pastes text from our overlay into the real chatbox and clicks send.
+ * This version correctly targets the contenteditable div and notifies React.
+ */
+function handleSendFromOverlay() {
+    console.log('[ChatGPTree] Attempting to send from overlay...');
+    const sourceTextarea = document.getElementById('chatgptree-composer-textarea');
+    
+    // FIX 1: Target the contenteditable div specifically, not just any element with the ID.
+    const targetInput = document.querySelector('div#prompt-textarea[contenteditable="true"]');
+    
+    const realSendButton = document.querySelector('[data-testid="send-button"]');
+
+    // Add specific checks to know exactly which element is missing.
+    if (!sourceTextarea) {
+        console.error('[ChatGPTree] CRITICAL: Could not find our own source textarea.');
+        showToast('Error: Source textarea missing.', 5000, 'error');
+        return;
+    }
+    if (!targetInput) {
+        console.error('[ChatGPTree] FAILED: Could not find the real ChatGPT input div.');
+        showToast('Error: ChatGPT input not found.', 5000, 'error');
+        return;
+    }
+    if (!realSendButton) {
+        console.error('[ChatGPTree] FAILED: Could not find the real ChatGPT send button.');
+        showToast('Error: ChatGPT send button not found.', 5000, 'error');
+        return;
+    }
+    
+    const textToSend = sourceTextarea.value;
+    if (!textToSend.trim()) {
+        console.log('[ChatGPTree] No text to send.');
+        return;
+    }
+
+    // FIX 2: Set the innerHTML of the div, not the .value.
+    // We wrap it in a <p> tag to mimic how the editor works.
+    targetInput.innerHTML = `<p>${textToSend}</p>`;
+    
+    // FIX 3: Dispatch an 'input' event to make React recognize the change. This is crucial.
+    targetInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+    console.log('[ChatGPTree] Injected text and dispatched input event.');
+    
+    // A small delay can help ensure React has processed the state change before we click.
+    setTimeout(() => {
+        if (realSendButton.disabled) {
+            console.warn('[ChatGPTree] Send button is still disabled. Forcing it enabled.');
+            realSendButton.disabled = false;
+        }
+        realSendButton.click();
+        console.log('[ChatGPTree] Sent message to ChatGPT.');
+
+        sourceTextarea.value = ''; // Clear our textarea
+        toggleComposerOverlay(); // Close the overlay
+    }, 100); // 100ms delay
 }
