@@ -132,6 +132,53 @@ function injectStyles() {
         .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
         .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
       }
+              /* ... existing styles ... */
+      .chatgptree-tree-container.grabbing { cursor: grabbing; }
+      @media (max-width: 768px) {
+        .chatgptree-prompt-jump-stack { right: 12px; }
+        .chatgptree-prompt-jump-btn, .chatgptree-prompt-jump-btn .btn-content { min-width: 32px; height: 32px; }
+        .chatgptree-prompt-jump-btn .index { min-width: 32px; height: 32px; font-size: 0.9rem; line-height: 1; }
+        .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
+        .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
+      }
+      
+      /* --- START: Added styles for Code Runner --- */
+      .chatgptree-runner-container {
+        display: flex;
+        justify-content: flex-start;
+        padding: 4px 0 8px 0;
+        margin-top: -8px; /* Pull it closer to the code block */
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 8px;
+      }
+      .chatgptree-render-btn {
+        background-color: #4A4A52;
+        color: #E5E5E5;
+        border: 1px solid #666;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s ease, color 0.2s ease;
+      }
+      .chatgptree-render-btn:hover {
+        background-color: #6ee7b7;
+        color: #23272f;
+        border-color: #6ee7b7;
+      }
+      .chatgptree-output-container {
+        width: 100%;
+        margin-bottom: 12px;
+      }
+      .chatgptree-output-iframe {
+        width: 100%;
+        height: 350px; /* Default height, can be made resizable later */
+        border: 1px solid #4A4A52;
+        border-radius: 8px;
+        background-color: #fff; /* White background for visibility */
+      }
+      /* --- END: Added styles for Code Runner --- */
     `;
     document.head.appendChild(style);
 }

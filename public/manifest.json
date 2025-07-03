@@ -1,3 +1,4 @@
+// --- UPDATE manifest.json ---
 {
   "manifest_version": 3,
   "name": "chatgptree",
@@ -36,6 +37,7 @@
         "modules/ui.js",
         "modules/tree.js",
         "modules/navigation.js",
+        "modules/runner.js",
         "contentScript.js"
       ],
       "run_at": "document_idle"

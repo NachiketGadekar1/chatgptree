@@ -155,6 +155,9 @@ async function cleanup() {
           updateTreeData(getUserPrompts());
           renderButtons();
           replaceEditMessageButtons();
+          // ADD THIS LINE TO PROCESS CODE BLOCKS
+          if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
+          
           const overlay = document.querySelector('.chatgptree-overlay');
           if (overlay?.classList.contains('visible')) {
             updateTreeVisualization();
