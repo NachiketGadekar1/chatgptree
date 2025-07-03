@@ -49,6 +49,7 @@ function setupInterceptors(visualOutputDiv, logEntriesDiv) {
   });
 }
 
+
 window.addEventListener('message', (event) => {
   if (event.origin !== 'https://chat.openai.com' && event.origin !== 'https://chatgpt.com') {
     return;
@@ -70,23 +71,39 @@ window.addEventListener('message', (event) => {
         document.head.appendChild(script);
 
       } else if (language === 'html') {
+        // --- START OF FIX ---
         const parser = new DOMParser();
         const doc = parser.parseFromString(code, "text/html");
 
-        doc.querySelectorAll('style').forEach(style => document.head.appendChild(style));
-        visualOutput.innerHTML = doc.body.innerHTML;
+        // 1. Find all scripts and store their code BEFORE manipulating the DOM.
+        // This is the critical change. We extract the code to be executed later.
+        const scriptsToRun = [];
+        doc.querySelectorAll('script').forEach(script => scriptsToRun.push(script.textContent));
 
-        doc.querySelectorAll('script').forEach(scriptTag => {
-          const scriptCode = scriptTag.textContent;
-          if (scriptCode) {
-            // --- THIS IS THE FIX ---
-            // Use window.eval() to execute the script in the global scope,
-            // making functions like sayHello() available to onclick handlers.
-            console.log('[HTML Runner] Evaluating script content in global scope.');
-            window.eval(scriptCode);
-            // --- END FIX ---
-          }
+        // 2. Handle styles by scoping them to the visual output container.
+        doc.querySelectorAll('style').forEach(styleTag => {
+            const scopedStyle = document.createElement('style');
+            scopedStyle.textContent = styleTag.textContent.replace(/\bbody\b/g, '#visual-output');
+            visualOutput.appendChild(scopedStyle);
         });
+
+        // 3. Append the initial static HTML content from the user's code.
+        // This moves all nodes, including the now-empty <script> tags.
+        visualOutput.append(...doc.body.childNodes);
+
+        // 4. Now, execute the stored script code. Our interceptors for console.log
+        // and document.body.innerHTML will correctly capture the output.
+        scriptsToRun.forEach(scriptCode => {
+            if (scriptCode) {
+                try {
+                    console.log('[HTML Runner] Evaluating script content...');
+                    window.eval(scriptCode);
+                } catch (e) {
+                    console.error(`Error executing script: ${e.message}`);
+                }
+            }
+        });
+        // --- END OF FIX ---
       }
     } catch (e) {
       logEntries.style.color = 'red';
