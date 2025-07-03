@@ -83,7 +83,6 @@ function injectStyles() {
         max-width: 400px; background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
       .chatgptree-prompt-jump-btn:hover .preview { opacity: 1; transform: translateX(0); }
-      /* REMOVED .active class styling */
       .chatgptree-tree-btn {
         position: fixed; top: 70px; right: 24px; z-index: 99999;
         height: 36px;
@@ -132,38 +131,35 @@ function injectStyles() {
         .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
         .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
       }
-              /* ... existing styles ... */
-      .chatgptree-tree-container.grabbing { cursor: grabbing; }
-      @media (max-width: 768px) {
-        .chatgptree-prompt-jump-stack { right: 12px; }
-        .chatgptree-prompt-jump-btn, .chatgptree-prompt-jump-btn .btn-content { min-width: 32px; height: 32px; }
-        .chatgptree-prompt-jump-btn .index { min-width: 32px; height: 32px; font-size: 0.9rem; line-height: 1; }
-        .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
-        .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
-      }
       
-      /* --- START: Added styles for Code Runner --- */
+      /* --- START: Updated styles for Code Runner --- */
       .chatgptree-runner-container {
         display: flex;
         justify-content: flex-start;
-        padding: 4px 0 8px 0;
-        margin-top: -8px; /* Pull it closer to the code block */
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 8px;
+        /* FIX: Changed negative margin-top to positive to prevent overlap and add space. */
+        margin-top: 12px;
+        /* FIX: Added more bottom margin for better separation from the output iframe. */
+        margin-bottom: 16px;
+        /* REMOVED the border-bottom for a cleaner look, as the iframe now has a strong border. */
       }
       .chatgptree-render-btn {
-        background-color: #4A4A52;
-        color: #E5E5E5;
-        border: 1px solid #666;
-        border-radius: 6px;
-        padding: 6px 12px;
-        font-size: 0.85rem;
-        font-weight: 500;
+        /* FIX: Restyled to match other UI buttons (e.g., Tree button) */
+        display: inline-flex;
+        align-items: center;
+        height: 36px;
+        padding: 0 16px;
+        background: rgba(35, 39, 47, 0.9);
+        color: #6ee7b7;
+        border: 2px solid #6ee7b7;
+        border-radius: 18px; /* Pill shape */
+        font-size: 0.9rem;
+        font-weight: 600;
         cursor: pointer;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
       .chatgptree-render-btn:hover {
-        background-color: #6ee7b7;
+        background: #6ee7b7;
         color: #23272f;
         border-color: #6ee7b7;
       }
@@ -173,11 +169,13 @@ function injectStyles() {
       }
       .chatgptree-output-iframe {
         width: 100%;
-        height: 600px; /* Increased from 350px */
-        border: 1px solid #4A4A52;
-        border-radius: 8px;
-        background-color: #fff; /* White background for visibility */
+        height: 600px;
+        background-color: #fff;
+        border: 2px solid #6ee7b7;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
+      /* --- END: Updated styles for Code Runner --- */
     `;
     document.head.appendChild(style);
 }

@@ -1,21 +1,84 @@
 // --- UPDATE runner_iframe.js ---
 'use strict';
 
-// setupLayout() and setupInterceptors() functions remain the same.
+// --- UPDATE runner_iframe.js ---
+
 function setupLayout() {
   document.head.innerHTML = `
     <style>
-      body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background-color: #fff; }
-      #console-area { flex-basis: 150px; flex-shrink: 0; background-color: #23272f; color: #e5e5e5; resize: vertical; overflow: hidden; display: flex; flex-direction: column; border-bottom: 1px solid #444; }
-      .console-header { padding: 6px 10px; font-family: sans-serif; font-weight: 600; font-size: 0.9rem; background-color: #333742; border-bottom: 1px solid #444; user-select: none; }
-      #log-entries { flex: 1; overflow-y: auto; padding: 8px; font-family: monospace; font-size: 0.9rem; }
-      #visual-output { flex: 1; padding: 8px; overflow: auto; }
-      .chatgptree-log-entry { border-bottom: 1px solid #444; padding: 4px 0; white-space: pre-wrap; word-break: break-all; }
-      .chatgptree-log-alert { color: #facc15; font-weight: bold; }
+      /* --- START: THEME UPDATES --- */
+      :root {
+        --chatgptree-dark-bg: #23272f;
+        --chatgptree-green: #6ee7b7;
+        --chatgptree-light-text: #e5e5e5;
+        --chatgptree-dark-text: #23272f;
+        --chatgptree-border-light: #444;
+      }
+
+      /* Custom scrollbar for a more integrated feel */
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: var(--chatgptree-dark-bg); }
+      ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--chatgptree-green); }
+
+      body { 
+        margin: 0; 
+        display: flex; 
+        flex-direction: column; 
+        height: 100vh; 
+        font-family: sans-serif; 
+        background-color: #fff; /* Fallback, but body is mostly covered */
+      }
+      #console-area { 
+        flex-basis: 150px; 
+        flex-shrink: 0; 
+        background-color: var(--chatgptree-dark-bg); 
+        color: var(--chatgptree-light-text); 
+        resize: vertical; 
+        overflow: hidden; 
+        display: flex; 
+        flex-direction: column; 
+        border-bottom: 2px solid var(--chatgptree-green); /* Themed border */
+      }
+      .console-header { 
+        padding: 6px 12px; 
+        font-family: sans-serif; 
+        font-weight: 600; 
+        font-size: 0.9rem; 
+        background-color: var(--chatgptree-dark-bg); /* Match background */
+        color: var(--chatgptree-green); /* Themed text color */
+        border-bottom: 1px solid var(--chatgptree-border-light); 
+        user-select: none;
+        text-transform: uppercase; /* Makes it look more like a title */
+        letter-spacing: 0.5px;
+      }
+      #log-entries { 
+        flex: 1; 
+        overflow-y: auto; 
+        padding: 8px 12px; 
+        font-family: monospace; 
+        font-size: 0.9rem; 
+      }
+      #visual-output { 
+        flex: 1; 
+        padding: 8px; 
+        overflow: auto; 
+      }
+      .chatgptree-log-entry { 
+        border-bottom: 1px solid var(--chatgptree-border-light); 
+        padding: 4px 0; 
+        white-space: pre-wrap; 
+        word-break: break-all; 
+      }
+      .chatgptree-log-alert { 
+        color: #facc15; 
+        font-weight: bold; 
+      }
+      /* --- END: THEME UPDATES --- */
     </style>
   `;
   document.body.innerHTML = `
-    <div id="console-area"><div class="console-header">Console</div><div id="log-entries"></div></div>
+    <div id="console-area"><div class="console-header">🌳Console</div><div id="log-entries"></div></div>
     <div id="visual-output"></div>
   `;
 }
@@ -96,7 +159,7 @@ window.addEventListener('message', (event) => {
         scriptsToRun.forEach(scriptCode => {
             if (scriptCode) {
                 try {
-                    console.log('[HTML Runner] Evaluating script content...');
+                    // console.log('[HTML Runner] Evaluating script content...');
                     window.eval(scriptCode);
                 } catch (e) {
                     console.error(`Error executing script: ${e.message}`);
