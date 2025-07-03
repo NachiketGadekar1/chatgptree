@@ -173,12 +173,11 @@ function injectStyles() {
       }
       .chatgptree-output-iframe {
         width: 100%;
-        height: 350px; /* Default height, can be made resizable later */
+        height: 600px; /* Increased from 350px */
         border: 1px solid #4A4A52;
         border-radius: 8px;
         background-color: #fff; /* White background for visibility */
       }
-      /* --- END: Added styles for Code Runner --- */
     `;
     document.head.appendChild(style);
 }
