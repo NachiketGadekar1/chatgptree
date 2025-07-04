@@ -613,31 +613,16 @@ function handleComposerEscapeKey(e) {
 
 /**
  * Pastes text from our overlay into the real chatbox and clicks send.
- * This version correctly targets the contenteditable div and notifies React.
+ * This version correctly handles the dynamic appearance of the send button.
  */
 function handleSendFromOverlay() {
     console.log('[ChatGPTree] Attempting to send from overlay...');
     const sourceTextarea = document.getElementById('chatgptree-composer-textarea');
-    
-    // FIX 1: Target the contenteditable div specifically, not just any element with the ID.
     const targetInput = document.querySelector('div#prompt-textarea[contenteditable="true"]');
-    
-    const realSendButton = document.querySelector('[data-testid="send-button"]');
 
-    // Add specific checks to know exactly which element is missing.
-    if (!sourceTextarea) {
-        console.error('[ChatGPTree] CRITICAL: Could not find our own source textarea.');
-        showToast('Error: Source textarea missing.', 5000, 'error');
-        return;
-    }
-    if (!targetInput) {
-        console.error('[ChatGPTree] FAILED: Could not find the real ChatGPT input div.');
+    if (!sourceTextarea || !targetInput) {
+        console.error('[ChatGPTree] FAILED: Could not find our textarea or the target input div.');
         showToast('Error: ChatGPT input not found.', 5000, 'error');
-        return;
-    }
-    if (!realSendButton) {
-        console.error('[ChatGPTree] FAILED: Could not find the real ChatGPT send button.');
-        showToast('Error: ChatGPT send button not found.', 5000, 'error');
         return;
     }
     
@@ -647,24 +632,32 @@ function handleSendFromOverlay() {
         return;
     }
 
-    // FIX 2: Set the innerHTML of the div, not the .value.
-    // We wrap it in a <p> tag to mimic how the editor works.
+    // Step 1: Set the innerHTML of the div to our text.
     targetInput.innerHTML = `<p>${textToSend}</p>`;
     
-    // FIX 3: Dispatch an 'input' event to make React recognize the change. This is crucial.
+    // Step 2: Dispatch an 'input' event. This is what tells React to update the UI.
     targetInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
-    console.log('[ChatGPTree] Injected text and dispatched input event.');
+    console.log('[ChatGPTree] Injected text and dispatched event. Waiting for UI to update...');
     
-    // A small delay can help ensure React has processed the state change before we click.
+    // Step 3: Wait for React to re-render and show the send button.
     setTimeout(() => {
-        if (realSendButton.disabled) {
-            console.warn('[ChatGPTree] Send button is still disabled. Forcing it enabled.');
-            realSendButton.disabled = false;
-        }
-        realSendButton.click();
-        console.log('[ChatGPTree] Sent message to ChatGPT.');
+        // Step 4: NOW, find the send button. It should exist.
+        const realSendButton = document.querySelector('[data-testid="send-button"]');
 
-        sourceTextarea.value = ''; // Clear our textarea
-        toggleComposerOverlay(); // Close the overlay
-    }, 100); // 100ms delay
+        if (realSendButton) {
+            console.log('[ChatGPTree] Found the send button after a delay.');
+            realSendButton.click();
+            console.log('[ChatGPTree] Sent message to ChatGPT.');
+
+            // Step 5: Clean up
+            sourceTextarea.value = '';
+            toggleComposerOverlay();
+        } else {
+            console.error('[ChatGPTree] FAILED: Send button did not appear after text injection and delay.');
+            showToast('Error: Could not activate ChatGPT send button.', 5000, 'error');
+            // Restore the placeholder text since the send failed
+            targetInput.innerHTML = `<p data-placeholder="Ask anything" class="placeholder"><br class="ProseMirror-trailingBreak"></p>`;
+            targetInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        }
+    }, 100); // A 100ms delay is usually more than enough.
 }
