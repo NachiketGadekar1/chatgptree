@@ -150,15 +150,21 @@ async function cleanup() {
  * Sets up MutationObserver to watch for dynamic changes in the chat.
  */
 function setupObservers() {
-    const chatRoot = document.querySelector('main');
-    if (!chatRoot) return;
+    // FIX: Target the entire document body instead of just the 'main' element.
+    // This ensures we catch the initial render of the composer on the new chat page,
+    // solving the race condition.
+    const observerTarget = document.body;
+    if (!observerTarget) {
+        console.error('[ChatGPTree] Could not find document.body to observe. This should not happen.');
+        return;
+    }
     
     observer = new MutationObserver(() => {
         setTimeout(() => {
           updateTreeData(getUserPrompts());
           renderButtons();
           replaceEditMessageButtons();
-          renderExpandComposerButton(); // <-- This now just creates the button.
+          renderExpandComposerButton();
           
           if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
           
@@ -169,7 +175,7 @@ function setupObservers() {
         }, 100);
     });
 
-    observer.observe(chatRoot, { childList: true, subtree: true });
+    observer.observe(observerTarget, { childList: true, subtree: true });
 }
 
   // ============================================================================
