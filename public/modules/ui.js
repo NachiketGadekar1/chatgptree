@@ -525,16 +525,19 @@ function handleEscapeKey(e) {
 const EXPAND_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>`;
 const COLLAPSE_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>`;
 
-// --- In modules/ui.js, add these new functions ---
-
 /**
  * Renders the button that opens the composer overlay.
  * It's idempotent, only creating the button if it doesn't exist.
+ * @returns {boolean} - True if the container was found, false otherwise.
  */
 function renderExpandComposerButton() {
     const actionsContainer = document.querySelector('[data-testid="composer-footer-actions"]');
-    if (!actionsContainer || actionsContainer.querySelector('.chatgptree-expand-btn')) {
-        return; // Exit if container not found or button already exists
+    if (!actionsContainer) {
+        return false; // Container not found, report failure.
+    }
+    
+    if (actionsContainer.querySelector('.chatgptree-expand-btn')) {
+        return true; // Button already exists, report success.
     }
 
     const expandButton = document.createElement('button');
@@ -547,6 +550,7 @@ function renderExpandComposerButton() {
     expandButton.onclick = toggleComposerOverlay;
 
     actionsContainer.prepend(expandButton);
+    return true; // Button was successfully added, report success.
 }
 
 /**
