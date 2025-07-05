@@ -1,5 +1,3 @@
-// --- START OF FILE modules/ui.js ---
-
 /**
  * Displays a temporary toast notification on the screen.
  * @param {string} message The message to display.
@@ -132,7 +130,6 @@ function injectStyles() {
         .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
       }
       
-      /* --- START: Updated styles for Code Runner --- */
       .chatgptree-runner-container {
         display: flex;
         justify-content: flex-start;
@@ -172,29 +169,51 @@ function injectStyles() {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
       
-       /* --- START: Styles for Composer Overlay (with fix) --- */
+       /* --- START: VISUAL REFRESH FOR COMPOSER --- */
       .chatgptree-expand-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
         margin-right: 8px;
+        background: rgba(35, 39, 47, 0.9);
+        color: #6ee7b7;
+        border: 2px solid #6ee7b7;
+        border-radius: 18px; /* Pill shape */
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .chatgptree-expand-btn:hover {
+        background: #6ee7b7;
+        color: #23272f;
+      }
+      .chatgptree-expand-btn svg {
+        width: 20px;
+        height: 20px;
       }
       .chatgptree-composer-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99998;
-        background: rgba(0, 0, 0, 0.6);
-        backdrop-filter: blur(5px);
-        display: none; /* Hidden by default */
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        display: none;
         align-items: center;
         justify-content: center;
       }
       .chatgptree-composer-overlay.visible {
-        display: flex; /* Show it */
+        display: flex;
       }
       .chatgptree-composer-container {
-        width: 80vw;
-        max-width: 900px;
-        height: 70vh;
-        background: #212121;
+        width: 90vw;
+        max-width: 1200px;
+        height: 85vh;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(8px);
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         padding: 24px;
         display: flex;
         flex-direction: column;
@@ -209,25 +228,31 @@ function injectStyles() {
         padding-bottom: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
-      .chatgptree-composer-textarea {
+      /* FIX: Use the ID selector '#' instead of the class selector '.' */
+      #chatgptree-composer-textarea {
         flex-grow: 1;
         width: 100%;
-        /* FIX: Change background to white and text to black for visibility */
-        background: #ffffff;
-        color: #111827; /* A standard dark gray/black */
+        background: rgba(0, 0, 0, 0.3);
+        color: #f9fafb; /* Bright white text for high contrast */
         border-radius: 8px;
-        border: 1px solid #d1d5db; /* A light gray border */
-        padding: 12px;
-        font-size: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 16px;
+        font-size: 1.1rem;
         font-family: inherit;
+        line-height: 1.6;
         resize: none;
         outline: none;
-        transition: border-color 0.2s;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        transition: border-color 0.2s, background-color 0.2s;
       }
-      .chatgptree-composer-textarea:focus {
+      #chatgptree-composer-textarea:focus {
         border-color: #6ee7b7;
+        background: rgba(0, 0, 0, 0.4);
       }
-      .chatgptree-composer-send-btn {
+      #chatgptree-composer-textarea::placeholder {
+        color: #9ca3af;
+      }
+      #chatgptree-composer-send-btn {
         align-self: flex-end;
         padding: 10px 24px;
         border: none;
@@ -239,10 +264,10 @@ function injectStyles() {
         cursor: pointer;
         transition: background-color 0.2s, transform 0.1s;
       }
-      .chatgptree-composer-send-btn:hover {
+      #chatgptree-composer-send-btn:hover {
         background-color: #34d399;
       }
-      .chatgptree-composer-send-btn:active {
+      #chatgptree-composer-send-btn:active {
         transform: scale(0.98);
       }
       .chatgptree-composer-close-btn {
@@ -252,10 +277,11 @@ function injectStyles() {
         font-size: 24px; line-height: 1; padding-bottom: 2px; transition: all 0.2s ease;
       }
       .chatgptree-composer-close-btn:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.1); }
-      /* --- END: New styles for Composer Overlay --- */
+      /* --- END: VISUAL REFRESH FOR COMPOSER --- */
     `;
     document.head.appendChild(style);
 }
+
 
 /**
  * Finds all user prompts on the page using a series of selectors.
@@ -542,16 +568,18 @@ function renderExpandComposerButton() {
 
     const expandButton = document.createElement('button');
     expandButton.type = 'button';
-    expandButton.className = 'composer-btn chatgptree-expand-btn';
+    // FIX: Use only our custom class to avoid inheriting unwanted styles
+    expandButton.className = 'chatgptree-expand-btn'; 
     expandButton.innerHTML = EXPAND_ICON_SVG;
     expandButton.setAttribute('aria-label', 'Expand composer');
+    expandButton.setAttribute('title', 'Expand Composer'); // Add a tooltip
     
-    // The button's only job is to open the overlay.
     expandButton.onclick = toggleComposerOverlay;
 
     actionsContainer.prepend(expandButton);
     return true; // Button was successfully added, report success.
 }
+
 
 /**
  * Creates the composer overlay and attaches its event listeners.
@@ -576,14 +604,16 @@ function createComposerOverlay() {
     const closeBtn = overlay.querySelector('.chatgptree-composer-close-btn');
     const textarea = overlay.querySelector('#chatgptree-composer-textarea');
 
-    sendBtn.onclick = handleSendFromOverlay;
-    closeBtn.onclick = toggleComposerOverlay;
-    textarea.onkeydown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevent new line
-            handleSendFromOverlay();
-        }
-    };
+    if (sendBtn) sendBtn.onclick = handleSendFromOverlay;
+    if (closeBtn) closeBtn.onclick = toggleComposerOverlay;
+    if (textarea) {
+        textarea.onkeydown = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                handleSendFromOverlay();
+            }
+        };
+    }
 }
 
 /**
@@ -591,7 +621,7 @@ function createComposerOverlay() {
  */
 function toggleComposerOverlay() {
     const overlay = document.querySelector('.chatgptree-composer-overlay');
-    const textarea = overlay.querySelector('#chatgptree-composer-textarea');
+    const textarea = overlay ? overlay.querySelector('#chatgptree-composer-textarea') : null;
     if (!overlay || !textarea) return;
 
     const isVisible = overlay.classList.toggle('visible');
@@ -637,7 +667,7 @@ function handleSendFromOverlay() {
     }
 
     // Step 1: Set the innerHTML of the div to our text.
-    targetInput.innerHTML = `<p>${textToSend}</p>`;
+    targetInput.innerHTML = `<p>${textToSend.replace(/\n/g, '<br>')}</p>`;
     
     // Step 2: Dispatch an 'input' event. This is what tells React to update the UI.
     targetInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
@@ -659,9 +689,6 @@ function handleSendFromOverlay() {
         } else {
             console.error('[ChatGPTree] FAILED: Send button did not appear after text injection and delay.');
             showToast('Error: Could not activate ChatGPT send button.', 5000, 'error');
-            // Restore the placeholder text since the send failed
-            targetInput.innerHTML = `<p data-placeholder="Ask anything" class="placeholder"><br class="ProseMirror-trailingBreak"></p>`;
-            targetInput.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         }
     }, 100); // A 100ms delay is usually more than enough.
 }
