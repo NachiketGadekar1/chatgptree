@@ -37,6 +37,7 @@
         "modules/tree.js",
         "modules/navigation.js",
         "modules/runner.js",
+        "modules/shortcuts.js",
         "contentScript.js"
       ],
       "run_at": "document_idle"

@@ -257,7 +257,7 @@ function initializePanningEvents(container, viewportGroup) {
     let panTicking = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
-    const panSpeed = 2.0; // Adjust this value to change panning speed
+    const panSpeed = 1.8; // Adjust this value to change panning speed
 
     function startPan(evt) {
       if (evt.button !== 0) return;

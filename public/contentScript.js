@@ -188,6 +188,11 @@
     // Add the master click listener
     document.body.addEventListener('click', handleGlobalClick, true);
 
+    // Initialize shortcuts
+    if (window.chatGPTreeShortcuts) {
+      window.chatGPTreeShortcuts.initializeShortcuts();
+    }
+
     createComposerOverlay();
     setupLifecycleManager();
     waitForChat();
@@ -202,6 +207,11 @@
     
     // Remove the master click listener
     document.body.removeEventListener('click', handleGlobalClick, true);
+    
+    // Destroy shortcuts listener
+    if (window.chatGPTreeShortcuts) {
+      window.chatGPTreeShortcuts.destroyShortcuts();
+    }
 
     stopLifecycleManager();
     cleanup();
@@ -425,7 +435,15 @@
   window.searchChatGPTree = (targetMessageId) => findNodeAndPathDfs(treeData, targetMessageId);
   window.getChatGPTreeViewState = () => viewState;
 
-  // Start the extension by default
-  enableExtension();
+  // Check initial state from storage and then enable/disable
+  chrome.storage.local.get('chatgptree_enabled', (result) => {
+    // Default to enabled if the value is not set (e.g., first install)
+    const isEnabled = result.chatgptree_enabled !== false;
+    if (isEnabled) {
+      enableExtension();
+    } else {
+      console.log('[ChatGPTree] Extension is installed but currently disabled by user setting.');
+    }
+  });
 
 })();

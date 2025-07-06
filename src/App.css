@@ -139,3 +139,39 @@ input:focus + .slider {
 input:checked + .slider:before {
   transform: translateX(22px);
 }
+
+/* Tab Styles */
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid #3a3f4b;
+  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #a0a0a0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border-bottom: 3px solid transparent;
+  outline: none;
+}
+
+.tab-btn:hover {
+  color: #fff;
+}
+
+.tab-btn.active {
+  color: #6ee7b7;
+  border-bottom-color: #6ee7b7;
+  font-weight: 600;
+}
+
+.tab-content {
+  /* No specific styles needed, just a container */
+}
