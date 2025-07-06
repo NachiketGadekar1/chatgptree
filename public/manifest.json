@@ -32,12 +32,14 @@
         "https://chatgpt.com/*"
       ],
       "js": [
+        "lib/gpt-tokenizer.js",
         "modules/utils.js",
         "modules/ui.js",
         "modules/tree.js",
         "modules/navigation.js",
         "modules/runner.js",
         "modules/shortcuts.js",
+        "modules/tokenizer.js",
         "contentScript.js"
       ],
       "run_at": "document_idle"

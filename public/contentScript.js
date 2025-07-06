@@ -193,6 +193,11 @@
       window.chatGPTreeShortcuts.initializeShortcuts();
     }
 
+    // Initialize tokenizer
+    if (window.chatGPTreeTokenizer) {
+      window.chatGPTreeTokenizer.initialize();
+    }
+
     createComposerOverlay();
     setupLifecycleManager();
     waitForChat();
@@ -211,6 +216,11 @@
     // Destroy shortcuts listener
     if (window.chatGPTreeShortcuts) {
       window.chatGPTreeShortcuts.destroyShortcuts();
+    }
+
+    // Destroy tokenizer
+    if (window.chatGPTreeTokenizer) {
+      window.chatGPTreeTokenizer.destroy();
     }
 
     stopLifecycleManager();
@@ -416,6 +426,7 @@
             renderExpandComposerButton();
             
             if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
+            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount();
             
             const overlay = document.querySelector('.chatgptree-overlay');
             if (overlay?.classList.contains('visible')) {

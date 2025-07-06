@@ -26,6 +26,8 @@ function showToast(message, duration = 5000, type = 'error') {
   }, duration);
 }
 
+// In modules/ui.js
+
 /**
  * Injects the required CSS styles into the page's head.
  */
@@ -297,6 +299,33 @@ function injectStyles() {
         transform: scale(1.1);
       }
       /* --- END: VISUAL REFRESH FOR COMPOSER --- */
+
+      /* --- START: Token Counter (Final Version) --- */
+      .chatgptree-token-counter {
+        /* Flexbox properties to align with siblings */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0; /* Prevent it from being squished */
+        
+        /* Visual styling */
+        margin-left: 8px; /* Space from the dropdown */
+        padding: 0 12px;
+        height: 36px;
+        background-color: rgba(35, 39, 47, 0.8); /* Dark BG to match other elements */
+        color: #6ee7b7; /* Bright green text */
+        border: 1px solid rgba(110, 231, 183, 0.4);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        white-space: nowrap;
+        user-select: none;
+        
+        /* Ensure it's not accidentally hidden */
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+      /* --- END: Token Counter (Final Version) --- */
     `;
     document.head.appendChild(style);
 }
@@ -589,31 +618,6 @@ function renderExpandComposerButton() {
 }
 
 /**
- * Toggles the visibility of the composer overlay with added debugging.
- */
-// function toggleComposerOverlay() {
-//     console.log('[ChatGPTree DBG] toggleComposerOverlay() called.');
-//     const overlay = document.querySelector('.chatgptree-composer-overlay');
-//     const textarea = overlay ? overlay.querySelector('#chatgptree-composer-textarea') : null;
-    
-//     if (!overlay || !textarea) {
-//         console.error('[ChatGPTree DBG] FAILED: Could not find composer overlay or its textarea. Aborting toggle.');
-//         return;
-//     }
-//     console.log('[ChatGPTree DBG] Overlay and textarea found. Toggling visibility.');
-
-//     const isVisible = overlay.classList.toggle('visible');
-
-//     if (isVisible) {
-//         textarea.focus();
-//         document.addEventListener('keydown', handleComposerEscapeKey);
-//     } else {
-//         document.removeEventListener('keydown', handleComposerEscapeKey);
-//     }
-// }
-
-
-/**
  * Toggles the visibility of the composer overlay.
  */
 function toggleComposerOverlay() {
@@ -630,5 +634,3 @@ function toggleComposerOverlay() {
         document.removeEventListener('keydown', handleComposerEscapeKey);
     }
 }
-
-
