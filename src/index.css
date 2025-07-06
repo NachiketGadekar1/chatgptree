@@ -1,5 +1,14 @@
-body {
+/*
+  Set a dark background for the entire panel to avoid white flashes or bars during resizing.
+  Ensure the app fills the entire space.
+*/
+html, body, #root {
+  height: 100%;
   margin: 0;
+  background-color: #23272f; /* Match the sidebar's base color */
+}
+
+body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
