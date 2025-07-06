@@ -227,6 +227,8 @@ function injectStyles() {
         margin: 0;
         padding-bottom: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        /* --- FIX: Center the title text to avoid the top-left button --- */
+        text-align: center;
       }
       #chatgptree-composer-textarea {
         flex-grow: 1;
@@ -270,17 +272,34 @@ function injectStyles() {
         transform: scale(0.98);
       }
       .chatgptree-composer-close-btn {
-        position: absolute; top: 16px; right: 16px; width: 32px; height: 32px;
-        background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
-        font-size: 24px; line-height: 1; padding-bottom: 2px; transition: all 0.2s ease;
+        position: absolute;
+        /* --- FIX: Move higher up and to the left, inside the padding area --- */
+        top: 16px;
+        left: 16px;
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        line-height: 1;
+        padding-bottom: 4px;
+        transition: all 0.2s ease;
+        z-index: 10;
       }
-      .chatgptree-composer-close-btn:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.1); }
+      .chatgptree-composer-close-btn:hover {
+        background: rgba(255, 255, 255, 0.4);
+        transform: scale(1.1);
+      }
       /* --- END: VISUAL REFRESH FOR COMPOSER --- */
     `;
     document.head.appendChild(style);
 }
-
 
 /**
  * Finds all user prompts on the page using a series of selectors.
