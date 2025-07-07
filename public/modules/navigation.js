@@ -69,10 +69,11 @@ async function executeNavigationStep(parentMessageId, targetChildMessageId) {
 /**
  * Main orchestrator for handling a click on a tree node to navigate the chat.
  * @param {object} targetNode The full data object of the clicked node.
- * @param {boolean} [isRetry=false] Flag to prevent infinite retry loops.
+ * @param {number} [maxRetries=1] Maximum number of retries allowed.
+ * @param {number} [retryCount=0] Current retry attempt.
  */
-async function handleNodeClick(targetNode, isRetry = false) {
-    if (!isRetry) {
+async function handleNodeClick(targetNode, maxRetries = 5, retryCount = 0) {
+    if (retryCount === 0) {
         showToast("Navigating...", 500, 'info');
         toggleTreeOverlay();
     }
@@ -101,12 +102,12 @@ async function handleNodeClick(targetNode, isRetry = false) {
         let parentForStep = forkPointId;
         for (const step of navigationSteps) {
             if (!scrollToPromptById(parentForStep, false)) {
-                if (!isRetry) { await sleep(750); handleNodeClick(targetNode, true); }
+                if (retryCount < maxRetries) { await sleep(750); handleNodeClick(targetNode, maxRetries, retryCount + 1); }
                 return;
             }
             await sleep(250);
             if (!await executeNavigationStep(parentForStep, step)) {
-                if (!isRetry) { await sleep(750); handleNodeClick(targetNode, true); }
+                if (retryCount < maxRetries) { await sleep(750); handleNodeClick(targetNode, maxRetries, retryCount + 1); }
                 return;
             }
             if (document.querySelector(`div[data-message-id="${targetNode.messageId}"]`)) {
@@ -118,9 +119,9 @@ async function handleNodeClick(targetNode, isRetry = false) {
         }
     }
 
-    if (!scrollToPromptById(targetNode.messageId, true) && !isRetry) {
+    if (!scrollToPromptById(targetNode.messageId, true) && retryCount < maxRetries) {
         await sleep(750);
-        handleNodeClick(targetNode, true);
+        handleNodeClick(targetNode, maxRetries, retryCount + 1);
     }
 }
 // --- END OF FILE modules/navigation.js ---

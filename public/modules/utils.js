@@ -1,3 +1,5 @@
+// --- START OF FILE modules/utils.js ---
+
 // --- Lifecycle & URL State ---
 let currentUrl = '';
 let observer = null;
@@ -154,4 +156,3 @@ async function loadTreeFromStorage(chatId) {
     return null;
   }
 }
-// --- END OF FILE modules/utils.js ---

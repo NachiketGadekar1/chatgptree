@@ -1,4 +1,4 @@
-// --- START OF FILE ui.js ---
+// --- START OF FILE modules/ui.js ---
 
 /**
  * Displays a temporary toast notification on the screen.
@@ -304,36 +304,27 @@ function injectStyles() {
 
       /* --- START: Token Counter (Final Version) --- */
       .chatgptree-token-counter {
-        /* NEW: Fixed Positioning and Centering */
+        /* Positioning */
         position: fixed;
-        top: 15px; /* Updated based on your click */
-        left: 50%; /* Centered horizontally */
-        transform: translateX(-50%); /* Ensures true centering */
-        z-index: 100000; /* Ensure it's above other elements */
-        box-shadow: 0 4px 12px rgba(0,0,0,0.25); /* Consistent with toast */
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100000;
         
-        /* Visual styling */
-        padding: 8px 12px; /* Adjusted padding for a fixed button look */
-        height: auto; /* Allow height to adjust based on padding/content */
-        background-color: rgba(35, 39, 47, 0.9); /* Dark BG to match other elements */
-        color: #6ee7b7; /* Bright green text */
+        /* Visuals */
+        padding: 8px 12px;
+        background-color: rgba(35, 39, 47, 0.9);
+        color: #6ee7b7;
         border: 1px solid rgba(110, 231, 183, 0.4);
         border-radius: 8px;
         font-size: 14px;
         font-weight: 600;
         white-space: nowrap;
         user-select: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
         
-        /* Removed previous flexbox properties for inline alignment */
-        /* display: flex; */
-        /* align-items: center; */
-        /* justify-content: center; */
-        /* flex-shrink: 0; */
-        /* margin-left: 8px; */
-
-        /* Ensure it's not accidentally hidden */
-        visibility: visible !important;
-        opacity: 1 !important;
+        /* Let JS control visibility to prevent flashing on load */
+        display: none;
       }
       /* --- END: Token Counter (Final Version) --- */
     `;
@@ -668,4 +659,3 @@ function renderTokenCounter() {
     }
     // No need to update count here, updateTokenCount will be called by observer or init
 }
-// --- END OF FILE ui.js ---

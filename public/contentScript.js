@@ -319,12 +319,28 @@
           isInitialized = true;
       }
 
-      renderTokenCounter(); // NEW: Call to render the token counter
+      renderTokenCounter(); // Ensure the element exists on the page.
+      const tokenCounter = document.getElementById('chatgptree-token-counter');
+
+      if (tokenCounter) {
+        if (currentChatId) {
+          // If we are on a chat page (e.g., /c/some-id), show the counter.
+          tokenCounter.style.display = 'block';
+          // And ask the tokenizer to perform an initial count.
+          if (window.chatGPTreeTokenizer) {
+            window.chatGPTreeTokenizer.updateTokenCount();
+          }
+        } else {
+          // If we are on the "new chat" page (currentChatId is null), hide it.
+          tokenCounter.style.display = 'none';
+        }
+      }
+      // --- END OF THE FIX ---
 
       renderTreeButton();
       renderButtons();
       replaceEditMessageButtons();
-      renderExpandComposerButton();
+      renderExpandComposerButton(); // Your original function call
 
       if (isChatTrackable && currentChatId) {
           autosaveInterval = setInterval(() => saveTreeToStorage(currentChatId, treeData), 5000);
@@ -465,4 +481,3 @@
   });
 
 })();
-// --- END OF FILE contentScript.js ---
