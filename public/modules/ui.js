@@ -1,3 +1,5 @@
+// --- START OF FILE ui.js ---
+
 /**
  * Displays a temporary toast notification on the screen.
  * @param {string} message The message to display.
@@ -302,17 +304,18 @@ function injectStyles() {
 
       /* --- START: Token Counter (Final Version) --- */
       .chatgptree-token-counter {
-        /* Flexbox properties to align with siblings */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0; /* Prevent it from being squished */
+        /* NEW: Fixed Positioning and Centering */
+        position: fixed;
+        top: 15px; /* Updated based on your click */
+        left: 50%; /* Centered horizontally */
+        transform: translateX(-50%); /* Ensures true centering */
+        z-index: 100000; /* Ensure it's above other elements */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25); /* Consistent with toast */
         
         /* Visual styling */
-        margin-left: 8px; /* Space from the dropdown */
-        padding: 0 12px;
-        height: 36px;
-        background-color: rgba(35, 39, 47, 0.8); /* Dark BG to match other elements */
+        padding: 8px 12px; /* Adjusted padding for a fixed button look */
+        height: auto; /* Allow height to adjust based on padding/content */
+        background-color: rgba(35, 39, 47, 0.9); /* Dark BG to match other elements */
         color: #6ee7b7; /* Bright green text */
         border: 1px solid rgba(110, 231, 183, 0.4);
         border-radius: 8px;
@@ -321,6 +324,13 @@ function injectStyles() {
         white-space: nowrap;
         user-select: none;
         
+        /* Removed previous flexbox properties for inline alignment */
+        /* display: flex; */
+        /* align-items: center; */
+        /* justify-content: center; */
+        /* flex-shrink: 0; */
+        /* margin-left: 8px; */
+
         /* Ensure it's not accidentally hidden */
         visibility: visible !important;
         opacity: 1 !important;
@@ -634,3 +644,28 @@ function toggleComposerOverlay() {
         document.removeEventListener('keydown', handleComposerEscapeKey);
     }
 }
+
+/**
+ * Renders or ensures the presence of the fixed token counter on the page.
+ */
+function renderTokenCounter() {
+    let tokenCounter = document.getElementById('chatgptree-token-counter');
+
+    // If it doesn't exist, create it.
+    if (!tokenCounter) {
+        tokenCounter = document.createElement('div');
+        tokenCounter.id = 'chatgptree-token-counter';
+        tokenCounter.className = 'chatgptree-token-counter';
+        tokenCounter.textContent = 'Total Tokens: Calculating...'; // Initial state
+        document.body.appendChild(tokenCounter);
+        console.log('[ChatGPTree DBG] Token counter element created and appended to body.');
+    } else {
+        // If it exists but might have been moved, ensure it's in the body
+        if (tokenCounter.parentElement !== document.body) {
+            document.body.appendChild(tokenCounter);
+            console.log('[ChatGPTree DBG] Token counter element re-parented to body.');
+        }
+    }
+    // No need to update count here, updateTokenCount will be called by observer or init
+}
+// --- END OF FILE ui.js ---

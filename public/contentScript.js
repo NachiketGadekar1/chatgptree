@@ -1,3 +1,5 @@
+// --- START OF FILE contentScript.js ---
+
 (function() {
   'use strict';
   
@@ -227,6 +229,7 @@
     cleanup();
 
     document.querySelector('.chatgptree-composer-overlay')?.remove();
+    document.querySelector('.chatgptree-token-counter')?.remove(); // NEW: Remove token counter on disable
     
     if (window.chatGPTreeObserver) {
         window.chatGPTreeObserver.disconnect();
@@ -316,6 +319,8 @@
           isInitialized = true;
       }
 
+      renderTokenCounter(); // NEW: Call to render the token counter
+
       renderTreeButton();
       renderButtons();
       replaceEditMessageButtons();
@@ -341,6 +346,8 @@
       document.querySelector('.chatgptree-tree-btn')?.remove();
       document.querySelector('.chatgptree-overlay')?.remove();
       document.querySelector('.chatgptree-expand-btn')?.remove();
+      // The chatgptree-token-counter is intentionally NOT removed here as it's fixed and meant to persist across navigations.
+      // Its visibility will be managed by tokenizer.js based on currentChatId.
       
       treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
       viewState = { x: 0, y: 0, scale: 1, isInitialized: false };
@@ -426,7 +433,7 @@
             renderExpandComposerButton();
             
             if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
-            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount();
+            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount(); // This will now update the fixed element
             
             const overlay = document.querySelector('.chatgptree-overlay');
             if (overlay?.classList.contains('visible')) {
@@ -458,3 +465,4 @@
   });
 
 })();
+// --- END OF FILE contentScript.js ---
