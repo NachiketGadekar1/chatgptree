@@ -306,7 +306,7 @@ function injectStyles() {
       .chatgptree-token-counter {
         /* Positioning */
         position: fixed;
-        top: 15px;
+        top: 7px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 100000;
@@ -556,6 +556,12 @@ function toggleTreeOverlay() {
       updateTreeVisualization();
     } else {
       document.removeEventListener('keydown', handleEscapeKey);
+    }
+
+    // --- THE FIX ---
+    // Update the counter's visibility whenever the tree is toggled.
+    if (window.updateTokenCounterVisibility) {
+      window.updateTokenCounterVisibility();
     }
   }
 }

@@ -10,6 +10,31 @@
   let animationFrameId = null;
   let lifecycleHandlers = {};
 
+    /**
+   * NEW: Centralized function to control the token counter's visibility.
+   * This function is the single source of truth for whether the counter should be shown.
+   */
+  window.updateTokenCounterVisibility = function() {
+    const tokenCounter = document.getElementById('chatgptree-token-counter');
+    if (!tokenCounter) return;
+
+    const isTreeVisible = document.querySelector('.chatgptree-overlay.visible');
+    const isComposerVisible = document.querySelector('.chatgptree-composer-overlay.visible');
+
+    // If any overlay is open, ALWAYS hide the counter.
+    if (isTreeVisible || isComposerVisible) {
+      tokenCounter.style.display = 'none';
+      return;
+    }
+
+    // Otherwise, apply the primary rule: show only on an active chat page.
+    if (currentChatId) {
+      tokenCounter.style.display = 'block';
+    } else {
+      tokenCounter.style.display = 'none';
+    }
+  }
+
   /**
    * Creates the composer overlay and attaches its event listeners.
    * This is now self-contained within contentScript.js.
@@ -75,39 +100,43 @@
       }, 100);
   }
 
-  /**
-   * Toggles the visibility of the composer overlay.
-   * It now self-heals by creating the overlay if it doesn't exist.
-   */
-  function toggleComposerOverlay() {
-      console.log('[ChatGPTree DBG] toggleComposerOverlay() called.');
-      let overlay = document.querySelector('.chatgptree-composer-overlay');
+/**
+ * Toggles the visibility of the composer overlay.
+ * It now self-heals by creating the overlay if it doesn't exist.
+ */
+function toggleComposerOverlay() {
+    console.log('[ChatGPTree DBG] toggleComposerOverlay() called.');
+    let overlay = document.querySelector('.chatgptree-composer-overlay');
 
-      // --- THE FIX ---
-      // If the overlay doesn't exist (e.g., wiped by React), create it now.
-      if (!overlay) {
-          console.warn('[ChatGPTree DBG] Composer overlay not found. Re-creating it now.');
-          createComposerOverlay(); // This function from ui.js creates and appends the overlay.
-          overlay = document.querySelector('.chatgptree-composer-overlay'); // Re-query the DOM to get the new reference.
-      }
+    // --- THE FIX ---
+    // If the overlay doesn't exist (e.g., wiped by React), create it now.
+    if (!overlay) {
+        console.warn('[ChatGPTree DBG] Composer overlay not found. Re-creating it now.');
+        createComposerOverlay(); // This function from ui.js creates and appends the overlay.
+        overlay = document.querySelector('.chatgptree-composer-overlay'); // Re-query the DOM to get the new reference.
+    }
 
-      const textarea = overlay ? overlay.querySelector('#chatgptree-composer-textarea') : null;
-      
-      if (!overlay || !textarea) {
-          console.error('[ChatGPTree DBG] FATAL: Failed to find or create the composer overlay. Aborting.');
-          return;
-      }
-      console.log('[ChatGPTree DBG] Overlay and textarea found. Toggling visibility.');
+    const textarea = overlay ? overlay.querySelector('#chatgptree-composer-textarea') : null;
+    
+    if (!overlay || !textarea) {
+        console.error('[ChatGPTree DBG] FATAL: Failed to find or create the composer overlay. Aborting.');
+        return;
+    }
+    console.log('[ChatGPTree DBG] Overlay and textarea found. Toggling visibility.');
 
-      const isVisible = overlay.classList.toggle('visible');
+    const isVisible = overlay.classList.toggle('visible');
 
-      if (isVisible) {
-          textarea.focus();
-          document.addEventListener('keydown', handleComposerEscapeKey);
-      } else {
-          document.removeEventListener('keydown', handleComposerEscapeKey);
-      }
-  }
+    if (isVisible) {
+        textarea.focus();
+        document.addEventListener('keydown', handleComposerEscapeKey);
+    } else {
+        document.removeEventListener('keydown', handleComposerEscapeKey);
+    }
+    
+    // Update the counter's visibility whenever the composer is toggled.
+    window.updateTokenCounterVisibility(); 
+}
+
 
   /**
    * Handles the 'Escape' key to close the composer overlay.
@@ -282,71 +311,62 @@
     }, 250);
   }
 
-  /**
-   * Initializes the extension's features for the current page.
-   */
-  async function initialize() {
-      console.log('[ChatGPTree DBG] +++ Running initialize() +++');
-      currentUrl = window.location.href;
-      currentChatId = getChatIdFromUrl();
+/**
+ * Initializes the extension's features for the current page.
+ */
+async function initialize() {
+    console.log('[ChatGPTree DBG] +++ Running initialize() +++');
+    currentUrl = window.location.href;
+    currentChatId = getChatIdFromUrl();
 
-      if (autosaveInterval) clearInterval(autosaveInterval);
+    if (autosaveInterval) clearInterval(autosaveInterval);
 
-      if (isNewlyCreatedChat) {
-          isChatTrackable = true;
-          isNewlyCreatedChat = false;
-      } else if (currentChatId) {
-          const savedTree = await loadTreeFromStorage(currentChatId);
-          if (savedTree) {
-              treeData = savedTree;
-              isChatTrackable = true;
-          } else {
-              isChatTrackable = false;
-          }
-      } else {
-          isChatTrackable = true;
-      }
-
-      if (!isChatTrackable || isNewlyCreatedChat || !currentChatId) {
-          treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
-      }
-
-      if (!isInitialized) {
-          console.log('[ChatGPTree DBG] First-time initialization: injecting styles, setting up observers and overlays.');
-          injectStyles();
-          setupObservers();
-          createTreeOverlay();
-          isInitialized = true;
-      }
-
-      renderTokenCounter(); // Ensure the element exists on the page.
-      const tokenCounter = document.getElementById('chatgptree-token-counter');
-
-      if (tokenCounter) {
-        if (currentChatId) {
-          // If we are on a chat page (e.g., /c/some-id), show the counter.
-          tokenCounter.style.display = 'block';
-          // And ask the tokenizer to perform an initial count.
-          if (window.chatGPTreeTokenizer) {
-            window.chatGPTreeTokenizer.updateTokenCount();
-          }
+    if (isNewlyCreatedChat) {
+        isChatTrackable = true;
+        isNewlyCreatedChat = false;
+    } else if (currentChatId) {
+        const savedTree = await loadTreeFromStorage(currentChatId);
+        if (savedTree) {
+            treeData = savedTree;
+            isChatTrackable = true;
         } else {
-          // If we are on the "new chat" page (currentChatId is null), hide it.
-          tokenCounter.style.display = 'none';
+            isChatTrackable = false;
         }
-      }
-      // --- END OF THE FIX ---
+    } else {
+        isChatTrackable = true;
+    }
 
-      renderTreeButton();
-      renderButtons();
-      replaceEditMessageButtons();
-      renderExpandComposerButton(); // Your original function call
+    if (!isChatTrackable || isNewlyCreatedChat || !currentChatId) {
+        treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
+    }
 
-      if (isChatTrackable && currentChatId) {
-          autosaveInterval = setInterval(() => saveTreeToStorage(currentChatId, treeData), 5000);
-      }
-      console.log('[ChatGPTree DBG] --- Finished initialize() ---');
-  }
+    if (!isInitialized) {
+        console.log('[ChatGPTree DBG] First-time initialization: injecting styles, setting up observers and overlays.');
+        injectStyles();
+        setupObservers();
+        createTreeOverlay();
+        isInitialized = true;
+    }
+
+    renderTokenCounter(); // Ensure the element exists on the page.
+
+    // Replace the old logic with a single call to our new central function.
+    window.updateTokenCounterVisibility(); 
+    // Ask the tokenizer to perform a count if the counter is visible.
+    if (window.chatGPTreeTokenizer) {
+      window.chatGPTreeTokenizer.updateTokenCount();
+    }
+    
+    renderTreeButton();
+    renderButtons();
+    replaceEditMessageButtons();
+    renderExpandComposerButton();
+
+    if (isChatTrackable && currentChatId) {
+        autosaveInterval = setInterval(() => saveTreeToStorage(currentChatId, treeData), 5000);
+    }
+    console.log('[ChatGPTree DBG] --- Finished initialize() ---');
+}
 
   /**
    * Cleans up all injected UI and listeners before a page navigation or full disable.
