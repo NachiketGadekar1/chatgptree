@@ -28,8 +28,6 @@ function showToast(message, duration = 5000, type = 'error') {
   }, duration);
 }
 
-// In modules/ui.js
-
 /**
  * Injects the required CSS styles into the page's head.
  */
@@ -56,35 +54,76 @@ function injectStyles() {
         right: 0 !important; bottom: 0 !important; border-radius: inherit !important; z-index: -1 !important;
         pointer-events: none !important; animation: chatgptree-glow-fade 2.5s ease-out forwards !important;
       }
+      .chatgptree-prompt-jump-container {
+        position: fixed;
+        top: 120px;
+        right: 24px;
+        z-index: 99999;
+        pointer-events: none; /* Container is passthrough unless scrollable */
+      }
+      .chatgptree-prompt-jump-container.scrollable {
+        max-height: calc(100vh - 144px); /* 120px top + 24px bottom margin */
+        overflow-y: auto;
+        pointer-events: auto; /* Allow scrolling */
+        padding-right: 8px; /* Space for scrollbar */
+      }
+      .chatgptree-prompt-jump-container.scrollable::-webkit-scrollbar { width: 6px; }
+      .chatgptree-prompt-jump-container.scrollable::-webkit-scrollbar-track { background: transparent; }
+      .chatgptree-prompt-jump-container.scrollable::-webkit-scrollbar-thumb {
+        background-color: rgba(110, 231, 183, 0.5);
+        border-radius: 3px;
+      }
       .chatgptree-prompt-jump-stack {
-        position: fixed; top: 120px; right: 24px; z-index: 99999; display: flex;
-        flex-direction: column; gap: 12px; pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
       }
       .chatgptree-prompt-jump-btn {
         position: relative; width: 36px; height: 36px; padding: 0; margin: 0; border: none;
         background: none; cursor: pointer; outline: none; pointer-events: auto;
       }
       .chatgptree-prompt-jump-btn .btn-content {
-        position: absolute; top: 0; right: 0; height: 36px; min-width: 36px; max-width: 36px;
-        display: flex; align-items: center; background: rgba(35, 39, 47, 0.9); color: #6ee7b7;
+        /* This element no longer expands. It's just for the number. */
+        position: absolute; top: 0; right: 0; height: 36px; width: 36px;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(35, 39, 47, 0.9); color: #6ee7b7;
         border: 2px solid #6ee7b7; border-radius: 18px; font-size: 1rem; font-weight: 600;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15); white-space: nowrap; overflow: hidden;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); will-change: max-width, background-color, color;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
       .chatgptree-prompt-jump-btn .index {
-        min-width: 36px; height: 36px; display: flex; align-items: center;
-        justify-content: center; z-index: 1; line-height: 1;
-        position: relative;
-        left: -1px; /* Adjust this value. Negative moves left, positive moves right. */
-      }
-      .chatgptree-prompt-jump-btn .preview {
-        padding: 0 16px 0 4px; font-size: 0.9rem; font-weight: normal; opacity: 0;
-        transform: translateX(-10px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); white-space: nowrap;
+        line-height: 1;
       }
       .chatgptree-prompt-jump-btn:hover .btn-content {
-        max-width: 400px; background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
-      .chatgptree-prompt-jump-btn:hover .preview { opacity: 1; transform: translateX(0); }
+      /* --- NEW: Global Tooltip for Jump Buttons --- */
+      .chatgptree-jump-tooltip {
+        position: fixed; /* Use fixed to escape parent's overflow */
+        top: 0;
+        left: 0;
+        background: #6ee7b7;
+        color: #23272f;
+        padding: 8px 16px;
+        border-radius: 18px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        z-index: 100001;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(0, 0) scale(0.95);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+        will-change: transform, opacity;
+      }
+      .chatgptree-jump-tooltip.visible {
+        opacity: 1;
+        transform: translate(0, 0) scale(1);
+      }
       .chatgptree-tree-btn {
         position: fixed; top: 70px; right: 24px; z-index: 99999;
         height: 36px;
@@ -127,10 +166,9 @@ function injectStyles() {
       }
       .chatgptree-tree-container.grabbing { cursor: grabbing; }
       @media (max-width: 768px) {
-        .chatgptree-prompt-jump-stack { right: 12px; }
+        .chatgptree-prompt-jump-container { right: 12px; }
         .chatgptree-prompt-jump-btn, .chatgptree-prompt-jump-btn .btn-content { min-width: 32px; height: 32px; }
         .chatgptree-prompt-jump-btn .index { min-width: 32px; height: 32px; font-size: 0.9rem; line-height: 1; }
-        .chatgptree-prompt-jump-btn:hover .btn-content { max-width: 300px; }
         .chatgptree-tree-btn { right: 12px; height: 32px; font-size: 0.85rem; padding: 0 10px; }
       }
       
@@ -302,7 +340,7 @@ function injectStyles() {
       }
       /* --- END: VISUAL REFRESH FOR COMPOSER --- */
 
-      /* --- START: Token Counter (Final Version) --- */
+      /* --- START: Token Counter --- */
       .chatgptree-token-counter {
         /* Positioning */
         position: fixed;
@@ -326,7 +364,7 @@ function injectStyles() {
         /* Let JS control visibility to prevent flashing on load */
         display: none;
       }
-      /* --- END: Token Counter (Final Version) --- */
+      /* --- END: Token Counter --- */
     `;
     document.head.appendChild(style);
 }
@@ -353,10 +391,12 @@ function getUserPrompts() {
 
 /**
  * Renders the floating jump-to-prompt buttons on the side of the screen.
+ * It dynamically makes the container scrollable if it exceeds the viewport height.
  */
 function renderButtons() {
-  let stack = document.querySelector('.chatgptree-prompt-jump-stack');
-  if (stack) stack.remove();
+  // Clear any existing jump button UI
+  let container = document.querySelector('.chatgptree-prompt-jump-container');
+  if (container) container.remove();
 
   const prompts = getUserPrompts();
   updateTreeData(prompts);
@@ -365,14 +405,21 @@ function renderButtons() {
     return;
   }
 
-  stack = document.createElement('div');
-  stack.className = 'chatgptree-prompt-jump-stack';
+  // Create the outer container and inner stack
+  container = document.createElement('div');
+  container.className = 'chatgptree-prompt-jump-container';
 
+  const stack = document.createElement('div');
+  stack.className = 'chatgptree-prompt-jump-stack';
+  container.appendChild(stack);
+
+  // Hide the entire container if the tree overlay is visible
   const overlay = document.querySelector('.chatgptree-overlay');
   if (overlay && overlay.classList.contains('visible')) {
-      stack.style.display = 'none';
+      container.style.display = 'none';
   }
 
+  // Populate the stack with buttons
   prompts.forEach((prompt, i) => {
     const btn = document.createElement('button');
     btn.className = 'chatgptree-prompt-jump-btn';
@@ -381,47 +428,100 @@ function renderButtons() {
     const index = document.createElement('span');
     index.className = 'index';
     index.textContent = (i + 1).toString();
-    const preview = document.createElement('span');
-    preview.className = 'preview';
-    preview.textContent = getPromptPreview(prompt, 100);
     btnContent.appendChild(index);
-    btnContent.appendChild(preview);
     btn.appendChild(btnContent);
     
-    // The click handler is now managed by a global listener in contentScript.js
-    // We add the target message ID as a data attribute for the global listener to use.
+    // The click handler is managed by a global listener in contentScript.js
     btn.dataset.targetMessageId = prompt.dataset.messageId;
+    // Store the preview text for the global mouseover handler
+    btn.dataset.previewText = getPromptPreview(prompt, 100);
 
     stack.appendChild(btn);
   });
 
-  document.body.appendChild(stack);
+  // Append to body BEFORE measuring height
+  document.body.appendChild(container);
+
+  // After rendering, check if the stack's height exceeds available space
+  const availableHeight = window.innerHeight - (120 + 24); // 120px top offset + 24px bottom margin
+  if (stack.offsetHeight > availableHeight) {
+      container.classList.add('scrollable');
+  }
+}
+
+  /**
+ * Creates the global tooltip element for jump buttons if it doesn't exist.
+ */
+function createJumpTooltip() {
+    if (document.getElementById('chatgptree-jump-tooltip')) return;
+    const tooltip = document.createElement('div');
+    tooltip.id = 'chatgptree-jump-tooltip';
+    tooltip.className = 'chatgptree-jump-tooltip';
+    document.body.appendChild(tooltip);
 }
 
 /**
- * Scrolls the page to the prompt with the given messageId and highlights it.
- * @param {string} messageId The messageId of the prompt to scroll to.
- * @param {boolean} [isFinalDestination=false] If true, applies a temporary highlight.
- * @returns {boolean} True if the scroll was successful, false otherwise.
+ * Shows and positions the global jump button tooltip.
+ * @param {HTMLElement} buttonElement The jump button being hovered.
  */
-function scrollToPromptById(messageId, isFinalDestination = false) {
-  const targetMessageDiv = document.querySelector(`div[data-message-id="${messageId}"]`);
-  if (!targetMessageDiv) {
-      console.error(`[scrollToPromptById] DOM Failure: Could not find prompt container element with ID: ${messageId}`);
-      return false;
+function showJumpTooltip(buttonElement) {
+    const tooltip = document.getElementById('chatgptree-jump-tooltip');
+    if (!tooltip || !buttonElement.dataset.previewText) return;
+
+    tooltip.textContent = buttonElement.dataset.previewText;
+
+    const btnRect = buttonElement.getBoundingClientRect();
+    
+    // Temporarily show to measure
+    tooltip.style.visibility = 'hidden';
+    tooltip.classList.add('visible');
+    const tooltipRect = tooltip.getBoundingClientRect();
+    tooltip.classList.remove('visible');
+    tooltip.style.visibility = 'visible';
+    
+    // Position it to the left of the button, vertically centered
+    const top = btnRect.top + (btnRect.height / 2) - (tooltipRect.height / 2);
+    const left = btnRect.left - tooltipRect.width - 12; // 12px gap
+
+    tooltip.style.transform = `translate(${left}px, ${top}px) scale(1)`;
+    tooltip.classList.add('visible');
   }
 
-  if (isFinalDestination) {
-      const elementToHighlight = targetMessageDiv.querySelector('div.bg-token-message-surface') || targetMessageDiv;
-
-      elementToHighlight.classList.remove('chatgptree-bubble-highlight');
-      void elementToHighlight.offsetWidth; // Force reflow to restart animation
-      elementToHighlight.classList.add('chatgptree-bubble-highlight');
+  /**
+   * Hides the global jump button tooltip.
+   */
+  function hideJumpTooltip() {
+    const tooltip = document.getElementById('chatgptree-jump-tooltip');
+    if (tooltip) {
+        tooltip.classList.remove('visible');
+        tooltip.style.transform = tooltip.style.transform.replace('scale(1)', 'scale(0.95)');
+    }
   }
 
-  targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  return true;
-}
+  /**
+   * Scrolls the page to the prompt with the given messageId and highlights it.
+   * @param {string} messageId The messageId of the prompt to scroll to.
+   * @param {boolean} [isFinalDestination=false] If true, applies a temporary highlight.
+   * @returns {boolean} True if the scroll was successful, false otherwise.
+   */
+  function scrollToPromptById(messageId, isFinalDestination = false) {
+    const targetMessageDiv = document.querySelector(`div[data-message-id="${messageId}"]`);
+    if (!targetMessageDiv) {
+        console.error(`[scrollToPromptById] DOM Failure: Could not find prompt container element with ID: ${messageId}`);
+        return false;
+    }
+
+    if (isFinalDestination) {
+        const elementToHighlight = targetMessageDiv.querySelector('div.bg-token-message-surface') || targetMessageDiv;
+
+        elementToHighlight.classList.remove('chatgptree-bubble-highlight');
+        void elementToHighlight.offsetWidth; // Force reflow to restart animation
+        elementToHighlight.classList.add('chatgptree-bubble-highlight');
+    }
+
+    targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
 
 /**
  * Renders the main 'Tree' button to open the tree view.

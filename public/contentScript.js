@@ -1,5 +1,3 @@
-// --- START OF FILE contentScript.js ---
-
 (function() {
   'use strict';
   
@@ -9,6 +7,7 @@
   let isExtensionGloballyEnabled = false;
   let animationFrameId = null;
   let lifecycleHandlers = {};
+  let debouncedRenderButtons = null;
 
     /**
    * NEW: Centralized function to control the token counter's visibility.
@@ -154,12 +153,11 @@ function toggleComposerOverlay() {
    */
   function handleGlobalClick(event) {
     const target = event.target;
-    console.log('[ChatGPTree DBG] Global click detected. Target:', target);
+    // console.log('[ChatGPTree DBG] Global click detected. Target:', target); // Can be noisy
 
     // --- Composer Button ---
     const expandBtn = target.closest('.chatgptree-expand-btn');
     if (expandBtn) {
-      console.log('[ChatGPTree DBG] Matched: Expand Composer Button. Preventing default action and calling toggleComposerOverlay().');
       event.preventDefault();
       event.stopPropagation();
       toggleComposerOverlay();
@@ -169,7 +167,6 @@ function toggleComposerOverlay() {
     // --- Tree View Button ---
     const treeBtn = target.closest('.chatgptree-tree-btn');
     if (treeBtn && !treeBtn.disabled) {
-      console.log('[ChatGPTree DBG] Matched: Tree View Button.');
       event.preventDefault();
       event.stopPropagation();
       toggleTreeOverlay();
@@ -179,7 +176,6 @@ function toggleComposerOverlay() {
     // --- Tree View Close Button ---
     const treeCloseBtn = target.closest('.chatgptree-close-btn');
     if (treeCloseBtn) {
-        console.log('[ChatGPTree DBG] Matched: Tree View Close Button.');
         event.preventDefault();
         event.stopPropagation();
         toggleTreeOverlay();
@@ -189,7 +185,6 @@ function toggleComposerOverlay() {
     // --- Composer Close Button ---
     const composerCloseBtn = target.closest('.chatgptree-composer-close-btn');
     if (composerCloseBtn) {
-        console.log('[ChatGPTree DBG] Matched: Composer Close Button.');
         event.preventDefault();
         event.stopPropagation();
         toggleComposerOverlay();
@@ -199,13 +194,41 @@ function toggleComposerOverlay() {
     // --- Jump-to-Prompt Button ---
     const jumpBtn = target.closest('.chatgptree-prompt-jump-btn');
     if (jumpBtn && jumpBtn.dataset.targetMessageId) {
-        console.log('[ChatGPTree DBG] Matched: Jump-to-Prompt Button.');
         event.preventDefault();
         event.stopPropagation();
         scrollToPromptById(jumpBtn.dataset.targetMessageId, true);
         return;
     }
-    console.log('[ChatGPTree DBG] Click did not match any known UI element.');
+  }
+
+  /**
+   * NEW: Master mouse hover handler for delegated events, like tooltips.
+   * @param {MouseEvent} event
+   */
+  function handleGlobalMouseover(event) {
+      const target = event.target;
+      
+      // --- Jump Button Tooltip ---
+      const jumpBtn = target.closest('.chatgptree-prompt-jump-btn');
+      if (jumpBtn) {
+          showJumpTooltip(jumpBtn);
+      }
+  }
+
+  /**
+   * NEW: Master mouse out handler for delegated events.
+   * @param {MouseEvent} event
+   */
+  function handleGlobalMouseout(event) {
+      const target = event.target;
+
+      // --- Jump Button Tooltip ---
+      const jumpBtn = target.closest('.chatgptree-prompt-jump-btn');
+      if (jumpBtn) {
+          // Check if the relatedTarget (where the mouse is going) is part of the tooltip itself.
+          // This check is often complex; a simpler approach is to just hide it.
+          hideJumpTooltip();
+      }
   }
 
   /**
@@ -216,8 +239,14 @@ function toggleComposerOverlay() {
     console.log('[ChatGPTree] Enabling extension...');
     isExtensionGloballyEnabled = true;
 
-    // Add the master click listener
+    // Add master event listeners
     document.body.addEventListener('click', handleGlobalClick, true);
+    document.body.addEventListener('mouseover', handleGlobalMouseover);
+    document.body.addEventListener('mouseout', handleGlobalMouseout);
+
+    // Debounced resize handler for jump buttons
+    debouncedRenderButtons = debounce(renderButtons, 150);
+    window.addEventListener('resize', debouncedRenderButtons);
 
     // Initialize shortcuts
     if (window.chatGPTreeShortcuts) {
@@ -230,6 +259,7 @@ function toggleComposerOverlay() {
     }
 
     createComposerOverlay();
+    createJumpTooltip(); // Create the tooltip element
     setupLifecycleManager();
     waitForChat();
   }
@@ -241,9 +271,17 @@ function toggleComposerOverlay() {
     if (!isExtensionGloballyEnabled) return;
     console.log('[ChatGPTree] Disabling extension...');
     
-    // Remove the master click listener
+    // Remove master event listeners
     document.body.removeEventListener('click', handleGlobalClick, true);
+    document.body.removeEventListener('mouseover', handleGlobalMouseover);
+    document.body.removeEventListener('mouseout', handleGlobalMouseout);
     
+    // Remove resize handler
+    if (debouncedRenderButtons) {
+        window.removeEventListener('resize', debouncedRenderButtons);
+        debouncedRenderButtons = null;
+    }
+
     // Destroy shortcuts listener
     if (window.chatGPTreeShortcuts) {
       window.chatGPTreeShortcuts.destroyShortcuts();
@@ -258,7 +296,8 @@ function toggleComposerOverlay() {
     cleanup();
 
     document.querySelector('.chatgptree-composer-overlay')?.remove();
-    document.querySelector('.chatgptree-token-counter')?.remove(); // NEW: Remove token counter on disable
+    document.querySelector('.chatgptree-token-counter')?.remove();
+    document.getElementById('chatgptree-jump-tooltip')?.remove();
     
     if (window.chatGPTreeObserver) {
         window.chatGPTreeObserver.disconnect();
@@ -378,12 +417,10 @@ async function initialize() {
       }
       if (autosaveInterval) clearInterval(autosaveInterval);
 
-      document.querySelector('.chatgptree-prompt-jump-stack')?.remove();
+      document.querySelector('.chatgptree-prompt-jump-container')?.remove();
       document.querySelector('.chatgptree-tree-btn')?.remove();
       document.querySelector('.chatgptree-overlay')?.remove();
       document.querySelector('.chatgptree-expand-btn')?.remove();
-      // The chatgptree-token-counter is intentionally NOT removed here as it's fixed and meant to persist across navigations.
-      // Its visibility will be managed by tokenizer.js based on currentChatId.
       
       treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
       viewState = { x: 0, y: 0, scale: 1, isInitialized: false };
