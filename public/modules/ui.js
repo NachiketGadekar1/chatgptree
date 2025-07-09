@@ -1,5 +1,3 @@
-// --- START OF FILE modules/ui.js ---
-
 /**
  * Displays a temporary toast notification on the screen.
  * @param {string} message The message to display.
@@ -574,24 +572,24 @@ function showJumpTooltip(buttonElement) {
    * @param {boolean} [isFinalDestination=false] If true, applies a temporary highlight.
    * @returns {boolean} True if the scroll was successful, false otherwise.
    */
-  function scrollToPromptById(messageId, isFinalDestination = false) {
-    const targetMessageDiv = document.querySelector(`div[data-message-id="${messageId}"]`);
-    if (!targetMessageDiv) {
-        console.error(`[scrollToPromptById] DOM Failure: Could not find prompt container element with ID: ${messageId}`);
-        return false;
-    }
-
-    if (isFinalDestination) {
-        const elementToHighlight = targetMessageDiv.querySelector('div.bg-token-message-surface') || targetMessageDiv;
-
-        elementToHighlight.classList.remove('chatgptree-bubble-highlight');
-        void elementToHighlight.offsetWidth; // Force reflow to restart animation
-        elementToHighlight.classList.add('chatgptree-bubble-highlight');
-    }
-
-    targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return true;
+function scrollToPromptById(messageId, isFinalDestination = false) {
+  const targetMessageDiv = document.querySelector(`div[data-message-id="${messageId}"]`);
+  if (!targetMessageDiv) {
+      console.error(`[scrollToPromptById] DOM Failure: Could not find prompt container element with ID: ${messageId}`);
+      return false;
   }
+
+  if (isFinalDestination) {
+      const elementToHighlight = targetMessageDiv.querySelector('div.bg-token-message-surface') || targetMessageDiv;
+
+      elementToHighlight.classList.remove('chatgptree-bubble-highlight');
+      void elementToHighlight.offsetWidth; // Force reflow to restart animation
+      elementToHighlight.classList.add('chatgptree-bubble-highlight');
+  }
+
+  targetMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
 
 /**
  * Renders the main 'Tree' button to open the tree view.
@@ -606,15 +604,16 @@ function renderTreeButton() {
   }
 
   if (isChatTrackable) {
-    treeBtn.disabled = false;
+    // Ensure the button is not disabled and has no 'disabled' class ---
+    treeBtn.disabled = false; 
     treeBtn.classList.remove('disabled');
     treeBtn.setAttribute('title', 'Show conversation tree');
   } else {
-    treeBtn.disabled = true;
+    //Do NOT set the disabled property. Only use the class. ---
+    treeBtn.disabled = false; // This allows the button to be clicked
     treeBtn.classList.add('disabled');
     treeBtn.setAttribute('title', 'Tree view is not available for pre-existing chats');
   }
-  // REMOVED: treeBtn.onclick is now handled by the global listener
 }
 
 /**
@@ -728,7 +727,6 @@ function toggleTreeOverlay() {
       document.removeEventListener('keydown', handleEscapeKey);
     }
 
-    // --- THE FIX ---
     // Update the counter's visibility whenever the tree is toggled.
     if (window.updateTokenCounterVisibility) {
       window.updateTokenCounterVisibility();

@@ -41,7 +41,7 @@ function updateTreeData(prompts) {
   prompts.forEach((prompt, i) => {
     const messageId = prompt.dataset.messageId;
     if (!treeData.nodes.has(messageId)) {
-      // FIX: Get the full, untruncated text content for data storage.
+      //Get the full, untruncated text content for data storage.
       // The most reliable element containing the text is often a div with specific child structure.
       const textContent = prompt.querySelector('div.text-token-text-primary')?.textContent || 
                           prompt.textContent || 
@@ -138,7 +138,7 @@ function createTreeNode(prompt, x, y) {
     node.style.cursor = 'pointer';
     node.onclick = () => handleNodeClick(prompt);
 
-    // FIX: Add a <title> element. SVG uses this to create a native browser tooltip on hover.
+    // Add a <title> element. SVG uses this to create a native browser tooltip on hover.
     const tooltip = document.createElementNS('http://www.w3.org/2000/svg', 'title');
     tooltip.textContent = prompt.text; // Use the full, non-truncated text for the tooltip
     node.appendChild(tooltip);

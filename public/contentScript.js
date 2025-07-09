@@ -10,7 +10,7 @@
   let debouncedRenderButtons = null;
 
     /**
-   * NEW: Centralized function to control the token counter's visibility.
+   * Centralized function to control the token counter's visibility.
    * This function is the single source of truth for whether the counter should be shown.
    */
   window.updateTokenCounterVisibility = function() {
@@ -36,7 +36,6 @@
 
   /**
    * Creates the composer overlay and attaches its event listeners.
-   * This is now self-contained within contentScript.js.
    */
   function createComposerOverlay() {
       if (document.querySelector('.chatgptree-composer-overlay')) return;
@@ -70,7 +69,6 @@
 
   /**
    * Pastes text from our overlay into the real chatbox and clicks send.
-   * This is now self-contained within contentScript.js.
    */
   function handleSendFromOverlay() {
       const sourceTextarea = document.getElementById('chatgptree-composer-textarea');
@@ -101,13 +99,12 @@
 
 /**
  * Toggles the visibility of the composer overlay.
- * It now self-heals by creating the overlay if it doesn't exist.
+ * It self-heals by creating the overlay if it doesn't exist.
  */
 function toggleComposerOverlay() {
     console.log('[ChatGPTree DBG] toggleComposerOverlay() called.');
     let overlay = document.querySelector('.chatgptree-composer-overlay');
 
-    // --- THE FIX ---
     // If the overlay doesn't exist (e.g., wiped by React), create it now.
     if (!overlay) {
         console.warn('[ChatGPTree DBG] Composer overlay not found. Re-creating it now.');
@@ -166,10 +163,15 @@ function toggleComposerOverlay() {
 
     // --- Tree View Button ---
     const treeBtn = target.closest('.chatgptree-tree-btn');
-    if (treeBtn && !treeBtn.disabled) {
+    if (treeBtn) {
       event.preventDefault();
       event.stopPropagation();
-      toggleTreeOverlay();
+      // Check for the '.disabled' class instead of the property ---
+      if (treeBtn.classList.contains('disabled')) {
+        showToast('Tree view is disabled for chats created before installing the extension.', 5000, 'info');
+      } else {
+        toggleTreeOverlay();
+      }
       return;
     }
     
@@ -181,6 +183,7 @@ function toggleComposerOverlay() {
         toggleTreeOverlay();
         return;
     }
+
 
     // --- Composer Close Button ---
     const composerCloseBtn = target.closest('.chatgptree-composer-close-btn');
@@ -202,7 +205,7 @@ function toggleComposerOverlay() {
   }
 
   /**
-   * NEW: Master mouse hover handler for delegated events, like tooltips.
+   * Master mouse hover handler for delegated events, like tooltips.
    * @param {MouseEvent} event
    */
   function handleGlobalMouseover(event) {
@@ -216,7 +219,7 @@ function toggleComposerOverlay() {
   }
 
   /**
-   * NEW: Master mouse out handler for delegated events.
+   * Master mouse out handler for delegated events.
    * @param {MouseEvent} event
    */
   function handleGlobalMouseout(event) {
@@ -506,7 +509,7 @@ async function initialize() {
             renderExpandComposerButton();
             
             if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
-            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount(); // This will now update the fixed element
+            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount(); 
             
             const overlay = document.querySelector('.chatgptree-overlay');
             if (overlay?.classList.contains('visible')) {
@@ -537,4 +540,4 @@ async function initialize() {
     }
   });
 
-})();           
+})();

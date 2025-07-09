@@ -12,7 +12,6 @@
    * It no longer handles visibility, only the calculation and text update.
    */
   function updateTokenCount() {
-    // --- FIX: This function is now much simpler ---
     try {
       // Don't proceed if the tokenizer library isn't loaded yet.
       if (typeof window[TOKENIZER_GLOBAL] === 'undefined' || !window[TOKENIZER_GLOBAL].encode) {

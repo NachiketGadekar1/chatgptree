@@ -1,5 +1,3 @@
-// --- START OF FILE modules/utils.js ---
-
 // --- Lifecycle & URL State ---
 let currentUrl = '';
 let observer = null;

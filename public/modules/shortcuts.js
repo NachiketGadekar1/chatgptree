@@ -98,7 +98,7 @@ async function initializeShortcuts() {
 
       let targetElement = null;
 
-      // THE FIX for Alt+B: Find the LAST matching element
+      // Find the LAST matching element
       if (pressedKey === 'alt+b') {
         const elements = document.querySelectorAll(selector);
         if (elements.length > 0) {

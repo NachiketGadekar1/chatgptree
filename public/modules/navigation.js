@@ -1,5 +1,3 @@
-// --- START OF FILE modules/navigation.js ---
-
 /**
  * Finds the currently visible user prompt that has the active navigation controls.
  * @returns {string|null} The messageId of the active prompt, or null if not found.
@@ -124,4 +122,3 @@ async function handleNodeClick(targetNode, maxRetries = 5, retryCount = 0) {
         handleNodeClick(targetNode, maxRetries, retryCount + 1);
     }
 }
-// --- END OF FILE modules/navigation.js ---
