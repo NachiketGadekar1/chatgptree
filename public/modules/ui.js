@@ -178,7 +178,8 @@ function injectStyles() {
         margin-top: 12px;
         margin-bottom: 16px;
       }
-      .chatgptree-render-btn {
+      /* --- MODIFIED: Runner Button Styles --- */
+      .chatgptree-run-btn {
         display: inline-flex;
         align-items: center;
         height: 36px;
@@ -186,18 +187,23 @@ function injectStyles() {
         background: rgba(35, 39, 47, 0.9);
         color: #6ee7b7;
         border: 2px solid #6ee7b7;
-        border-radius: 18px; /* Pill shape */
+        border-radius: 18px;
         font-size: 0.9rem;
         font-weight: 600;
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      .chatgptree-render-btn:hover {
+      .chatgptree-run-btn:hover:not(:disabled) {
         background: #6ee7b7;
         color: #23272f;
         border-color: #6ee7b7;
       }
+      .chatgptree-run-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      /* --- END MODIFICATION --- */
       .chatgptree-output-container {
         width: 100%;
         margin-bottom: 12px;
@@ -211,6 +217,69 @@ function injectStyles() {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
       
+      /* --- NEW: Piston Consent Dialog --- */
+      .chatgptree-consent-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100002;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(5px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chatgptree-consent-dialog {
+        background: #23272f;
+        color: #e5e5e5;
+        border: 2px solid #6ee7b7;
+        border-radius: 12px;
+        padding: 24px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .chatgptree-consent-title {
+        color: #6ee7b7; font-size: 1.25rem; font-weight: 600; margin: 0; text-align: center;
+      }
+      .chatgptree-consent-text {
+        font-size: 0.95rem; line-height: 1.6;
+      }
+      .chatgptree-consent-text a {
+        color: #6ee7b7; text-decoration: underline;
+      }
+      .chatgptree-consent-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .chatgptree-consent-btn {
+        padding: 8px 20px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .chatgptree-consent-btn.confirm {
+        background-color: #6ee7b7;
+        color: #23272f;
+      }
+      .chatgptree-consent-btn.confirm:hover {
+        background-color: #34d399;
+      }
+      .chatgptree-consent-btn.cancel {
+        background-color: transparent;
+        color: #e5e5e5;
+        border: 1px solid #6b7280;
+      }
+      .chatgptree-consent-btn.cancel:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: #9ca3af;
+      }
+      /* --- END Piston Consent Dialog --- */
+
        /* --- START: VISUAL REFRESH FOR COMPOSER --- */
       .chatgptree-expand-btn {
         display: flex;
@@ -368,6 +437,7 @@ function injectStyles() {
     `;
     document.head.appendChild(style);
 }
+
 
 /**
  * Finds all user prompts on the page using a series of selectors.
