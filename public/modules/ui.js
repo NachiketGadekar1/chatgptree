@@ -26,12 +26,48 @@ function showToast(message, duration = 5000, type = 'error') {
   }, duration);
 }
 
+const STAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+
 /**
  * Injects the required CSS styles into the page's head.
  */
 function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
+      /* --- NEW: Bookmark Button --- */
+      .chatgptree-bookmark-btn {
+        background: none;
+        border: none;
+        padding: 0;
+        margin: 0 4px 0 8px; /* Give it some space */
+        cursor: pointer;
+        color: #8e8ea0; /* Default empty star color */
+        transition: color 0.2s ease, transform 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .chatgptree-bookmark-btn:hover {
+        color: #e5e5e5;
+        transform: scale(1.15);
+      }
+      .chatgptree-bookmark-btn.active {
+        color: #6ee7b7; /* Our theme green */
+      }
+      .chatgptree-bookmark-btn.active:hover {
+        color: #34d399;
+      }
+      .chatgptree-bookmark-btn svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+      }
+      .chatgptree-bookmark-btn.active svg {
+        fill: currentColor;
+      }
+      /* --- END Bookmark Button --- */
+
       .chatgptree-toast-notification {
         position: fixed; bottom: 24px; left: 50%; z-index: 100000; color: #ffffff; border-radius: 12px;
         padding: 12px 20px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
@@ -434,6 +470,46 @@ function injectStyles() {
       /* --- END: Token Counter --- */
     `;
     document.head.appendChild(style);
+}
+
+/**
+ * Injects bookmark star icons into any chat history items that are missing them.
+ * This function is designed to be run multiple times safely.
+ * @param {Map<string, {id: string, title: string}>} bookmarksMap A map of bookmarked chat IDs.
+ */
+function renderBookmarkStars(bookmarksMap) {
+    // Select ALL chat items, regardless of any prior injection.
+    const chatItems = document.querySelectorAll('a[href^="/c/"]');
+
+    chatItems.forEach(item => {
+        // The new, more reliable condition: if this item already has our button, do nothing.
+        if (item.querySelector('.chatgptree-bookmark-btn')) {
+            return;
+        }
+        
+        // This item is missing a button, so we inject one.
+        const href = item.getAttribute('href');
+        const chatId = href ? href.split('/').pop() : null;
+        const chatTitle = item.querySelector('div.truncate')?.textContent?.trim() || 'Untitled Chat';
+        
+        const trailingContainer = item.querySelector('div.trailing.highlight');
+        if (!trailingContainer || !chatId) return;
+        
+        const starBtn = document.createElement('button');
+        starBtn.className = 'chatgptree-bookmark-btn';
+        starBtn.dataset.chatId = chatId;
+        starBtn.dataset.chatTitle = chatTitle;
+        starBtn.innerHTML = STAR_ICON_SVG;
+
+        if (bookmarksMap.has(chatId)) {
+            starBtn.classList.add('active');
+            starBtn.setAttribute('aria-label', 'Remove bookmark');
+        } else {
+            starBtn.setAttribute('aria-label', 'Add bookmark');
+        }
+
+        trailingContainer.prepend(starBtn);
+    });
 }
 
 

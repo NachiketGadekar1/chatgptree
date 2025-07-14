@@ -8,6 +8,56 @@
   let animationFrameId = null;
   let lifecycleHandlers = {};
   let debouncedRenderButtons = null;
+  let bookmarks = new Map();
+  let chatHistoryObserver = null;
+
+  /**
+   * Loads bookmarks from chrome.storage.local into the global map.
+   */
+  async function loadBookmarks() {
+    try {
+      const result = await chrome.storage.local.get('chatgptree_bookmarks');
+      const storedBookmarks = result.chatgptree_bookmarks || [];
+      bookmarks = new Map(storedBookmarks.map(b => [b.id, b]));
+      console.log(`[ChatGPTree] Loaded ${bookmarks.size} bookmarks.`);
+    } catch (error) {
+      console.error('[ChatGPTree] Error loading bookmarks:', error);
+      bookmarks = new Map();
+    }
+  }
+
+  /**
+   * Saves the current bookmarks map to chrome.storage.local.
+   */
+  async function saveBookmarks() {
+    try {
+      const bookmarksArray = Array.from(bookmarks.values());
+      await chrome.storage.local.set({ 'chatgptree_bookmarks': bookmarksArray });
+      chrome.runtime.sendMessage({ action: 'BOOKMARKS_UPDATED' });
+    } catch (error) {
+      console.error('[ChatGPTree] Error saving bookmarks:', error);
+    }
+  }
+
+  /**
+   * Toggles the bookmark state for a given chat ID.
+   * @param {string} chatId - The ID of the chat to bookmark/unbookmark.
+   * @param {string} chatTitle - The title of the chat.
+   * @param {HTMLElement} buttonElement - The star button element.
+   */
+  function toggleBookmark(chatId, chatTitle, buttonElement) {
+    if (bookmarks.has(chatId)) {
+      bookmarks.delete(chatId);
+      buttonElement.classList.remove('active');
+      buttonElement.setAttribute('aria-label', 'Add bookmark');
+    } else {
+      bookmarks.set(chatId, { id: chatId, title: chatTitle });
+      buttonElement.classList.add('active');
+      buttonElement.setAttribute('aria-label', 'Remove bookmark');
+    }
+    saveBookmarks();
+  }
+
 
     /**
    * Centralized function to control the token counter's visibility.
@@ -152,6 +202,19 @@ function toggleComposerOverlay() {
     const target = event.target;
     // console.log('[ChatGPTree DBG] Global click detected. Target:', target); // Can be noisy
 
+    // --- Bookmark Button ---
+    const bookmarkBtn = target.closest('.chatgptree-bookmark-btn');
+    if (bookmarkBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      const chatId = bookmarkBtn.dataset.chatId;
+      const chatTitle = bookmarkBtn.dataset.chatTitle;
+      if (chatId && chatTitle) {
+        toggleBookmark(chatId, chatTitle, bookmarkBtn);
+      }
+      return;
+    }
+
     // --- Composer Button ---
     const expandBtn = target.closest('.chatgptree-expand-btn');
     if (expandBtn) {
@@ -237,10 +300,13 @@ function toggleComposerOverlay() {
   /**
    * Enables all extension functionality.
    */
-  function enableExtension() {
+  async function enableExtension() {
     if (isExtensionGloballyEnabled) return;
     console.log('[ChatGPTree] Enabling extension...');
     isExtensionGloballyEnabled = true;
+
+    // Load bookmarks first
+    await loadBookmarks();
 
     // Add master event listeners
     document.body.addEventListener('click', handleGlobalClick, true);
@@ -301,10 +367,15 @@ function toggleComposerOverlay() {
     document.querySelector('.chatgptree-composer-overlay')?.remove();
     document.querySelector('.chatgptree-token-counter')?.remove();
     document.getElementById('chatgptree-jump-tooltip')?.remove();
+    document.querySelectorAll('.chatgptree-bookmark-btn').forEach(btn => btn.remove());
     
     if (window.chatGPTreeObserver) {
         window.chatGPTreeObserver.disconnect();
         window.chatGPTreeObserver = null;
+    }
+    if (chatHistoryObserver) {
+        chatHistoryObserver.disconnect();
+        chatHistoryObserver = null;
     }
 
     isExtensionGloballyEnabled = false;
@@ -326,7 +397,7 @@ function toggleComposerOverlay() {
 
 
   /**
-   * Waits for the main chat interface to be ready before initializing.
+   * Waits for the main chat interface and navigation to be ready before initializing.
    */
   function waitForChat() {
     console.log('[ChatGPTree DBG] Starting waitForChat poll...');
@@ -339,14 +410,15 @@ function toggleComposerOverlay() {
         pollCount++;
         const mainElement = document.querySelector('main');
         const promptInput = document.getElementById('prompt-textarea');
+        const navElement = document.querySelector('nav'); // Check for the nav sidebar
         
-        console.log(`[ChatGPTree DBG] Poll #${pollCount}: mainElement found: ${!!mainElement}, promptInput found: ${!!promptInput}`);
+        console.log(`[ChatGPTree DBG] Poll #${pollCount}: main: ${!!mainElement}, prompt: ${!!promptInput}, nav: ${!!navElement}`);
 
-        if (mainElement && promptInput) {
+        if (mainElement && promptInput && navElement) { // Ensure navElement is also present
             console.log(`[ChatGPTree DBG] SUCCESS: Chat interface detected. Initializing.`);
             clearInterval(intervalId);
             initialize();
-        } else if (pollCount > 40) {
+        } else if (pollCount > 40) { // Timeout after 10 seconds
             console.error('[ChatGPTree DBG] ERROR: Timed out waiting for chat interface.');
             clearInterval(intervalId);
         }
@@ -424,6 +496,7 @@ async function initialize() {
       document.querySelector('.chatgptree-tree-btn')?.remove();
       document.querySelector('.chatgptree-overlay')?.remove();
       document.querySelector('.chatgptree-expand-btn')?.remove();
+      document.querySelectorAll('.chatgptree-bookmark-btn').forEach(btn => btn.remove());
       
       treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
       viewState = { x: 0, y: 0, scale: 1, isInitialized: false };
@@ -432,7 +505,21 @@ async function initialize() {
           hasCreatedRootButton = false;
       }
 
-      if (observer) observer.disconnect();
+      // --- START: Robust observer cleanup ---
+      if (observer) {
+          observer.disconnect();
+          observer = null;
+      }
+      if (window.chatGPTreeObserver) {
+          window.chatGPTreeObserver.disconnect();
+          window.chatGPTreeObserver = null;
+      }
+      if (chatHistoryObserver) {
+          chatHistoryObserver.disconnect();
+          chatHistoryObserver = null;
+      }
+      // --- END: Robust observer cleanup ---
+
       isInitialized = false;
       console.log('[ChatGPTree DBG] --- Finished cleanup() ---');
   }
@@ -494,32 +581,93 @@ async function initialize() {
 
 
   /**
-   * Sets up MutationObserver to watch for dynamic changes in the chat.
+   * Sets up MutationObservers to watch for dynamic changes.
+   * It uses an "inject and verify" loop for the chat history to robustly
+   * handle client-side navigation and ensure bookmark stars are always present.
    */
   function setupObservers() {
+      // Observer for main chat content
       const chatRoot = document.querySelector('main');
-      if (!chatRoot) return;
-      
-      window.chatGPTreeObserver = new MutationObserver(() => {
-          setTimeout(() => {
-            if (!isExtensionGloballyEnabled) return;
-            updateTreeData(getUserPrompts());
-            renderButtons();
-            replaceEditMessageButtons();
-            renderExpandComposerButton();
-            
-            if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
-            if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount(); 
-            
-            const overlay = document.querySelector('.chatgptree-overlay');
-            if (overlay?.classList.contains('visible')) {
-              updateTreeVisualization();
-            }
-          }, 100);
-      });
+      if (chatRoot && !window.chatGPTreeObserver) {
+        window.chatGPTreeObserver = new MutationObserver(() => {
+            setTimeout(() => {
+              if (!isExtensionGloballyEnabled) return;
+              updateTreeData(getUserPrompts());
+              renderButtons();
+              replaceEditMessageButtons();
+              renderExpandComposerButton();
+              
+              if (window.chatGPTreeRunner) window.chatGPTreeRunner.processNewCodeBlocks();
+              if (window.chatGPTreeTokenizer) window.chatGPTreeTokenizer.updateTokenCount(); 
+              
+              const overlay = document.querySelector('.chatgptree-overlay');
+              if (overlay?.classList.contains('visible')) {
+                updateTreeVisualization();
+              }
+            }, 100);
+        });
+        window.chatGPTreeObserver.observe(chatRoot, { childList: true, subtree: true });
+        observer = window.chatGPTreeObserver;
+      }
 
-      window.chatGPTreeObserver.observe(chatRoot, { childList: true, subtree: true });
-      observer = window.chatGPTreeObserver;
+      // --- START: New "Inject and Verify" Logic for Bookmarks ---
+      if (chatHistoryObserver) {
+        chatHistoryObserver.disconnect();
+        chatHistoryObserver = null;
+      }
+
+      let attempts = 0;
+      const maxAttempts = 40; // Poll for up to 10 seconds
+
+      const ensureBookmarksExist = () => {
+          if (!isExtensionGloballyEnabled || attempts >= maxAttempts) {
+              if (attempts >= maxAttempts) {
+                  console.error('[ChatGPTree] Failed to inject bookmark stars after multiple attempts.');
+              }
+              return;
+          }
+
+          // Step 1: Attempt to inject stars into any items that are missing one.
+          renderBookmarkStars(bookmarks);
+
+          // Step 2: Verify the injection.
+          const chatItems = document.querySelectorAll('a[href^="/c/"]');
+          const injectedStars = document.querySelectorAll('.chatgptree-bookmark-btn');
+
+          // If there are chat items but not all of them have stars, React likely wiped them. Retry.
+          if (chatItems.length > 0 && injectedStars.length < chatItems.length) {
+              console.warn(`[ChatGPTree DBG] Verification failed. Found ${chatItems.length} chats but only ${injectedStars.length} stars. Retrying... (Attempt ${attempts + 1})`);
+              attempts++;
+              setTimeout(ensureBookmarksExist, 250);
+              return;
+          }
+
+          // If there are no chat items yet (e.g., page is still loading), wait and retry.
+          if (chatItems.length === 0 && attempts < maxAttempts) {
+              console.warn(`[ChatGPTree DBG] No chat items found yet. Retrying... (Attempt ${attempts + 1})`);
+              attempts++;
+              setTimeout(ensureBookmarksExist, 250);
+              return;
+          }
+
+          // Step 3: Success! The DOM is stable. Attach the observer for future changes (like scrolling).
+          console.log('[ChatGPTree DBG] Bookmark stars successfully verified in the DOM.');
+          const nav = document.querySelector('nav');
+          if (nav && !chatHistoryObserver) {
+              chatHistoryObserver = new MutationObserver(
+                  debounce(() => {
+                      if (!isExtensionGloballyEnabled) return;
+                      // This will fill in any gaps created by lazy-loading more chats.
+                      renderBookmarkStars(bookmarks);
+                  }, 250)
+              );
+              chatHistoryObserver.observe(nav, { childList: true, subtree: true });
+          }
+      };
+
+      // Kick off the robust injection process.
+      ensureBookmarksExist();
+      // --- END: New "Inject and Verify" Logic ---
   }
 
   // ============================================================================

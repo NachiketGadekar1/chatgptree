@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import HelpView from './HelpView';
 import './HelpView.css';
+import BookmarksView from './BookmarksView';
+import './BookmarksView.css';
 
 // Define a type for the active tab
-type ActiveTab = 'main' | 'help';
+type ActiveTab = 'main' | 'help' | 'bookmarks';
 
 // --- Main View Component ---
 const MainView: React.FC = () => {
@@ -75,6 +77,12 @@ function Sidebar() {
             Main
           </button>
           <button
+            className={`tab-btn ${activeTab === 'bookmarks' ? 'active' : ''}`}
+            onClick={() => setActiveTab('bookmarks')}
+          >
+            Bookmarks
+          </button>
+          <button
             className={`tab-btn ${activeTab === 'help' ? 'active' : ''}`}
             onClick={() => setActiveTab('help')}
           >
@@ -84,6 +92,7 @@ function Sidebar() {
 
         <div className="tab-content">
           {activeTab === 'main' && <MainView />}
+          {activeTab === 'bookmarks' && <BookmarksView />}
           {activeTab === 'help' && <HelpView />}
         </div>
       </div>
