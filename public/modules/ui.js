@@ -89,6 +89,28 @@ function injectStyles() {
       }
       /* --- END Bookmark Button --- */
 
+      .chatgptree-bookmark-tooltip {
+        position: fixed;
+        z-index: 100001; /* High z-index to appear over everything */
+        background: #23272f;
+        color: #e5e5e5;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        white-space: nowrap;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(5px);
+        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+        will-change: transform, opacity;
+      }
+      .chatgptree-bookmark-tooltip.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
       .chatgptree-toast-notification {
         position: fixed; bottom: 24px; left: 50%; z-index: 100000; color: #ffffff; border-radius: 12px;
         padding: 12px 20px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
@@ -152,7 +174,6 @@ function injectStyles() {
       .chatgptree-prompt-jump-btn:hover .btn-content {
         background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
-      /* --- NEW: Global Tooltip for Jump Buttons --- */
       .chatgptree-jump-tooltip {
         position: fixed; /* Use fixed to escape parent's overflow */
         top: 0;
@@ -233,7 +254,6 @@ function injectStyles() {
         margin-top: 12px;
         margin-bottom: 16px;
       }
-      /* --- MODIFIED: Runner Button Styles --- */
       .chatgptree-run-btn {
         display: inline-flex;
         align-items: center;
@@ -258,7 +278,6 @@ function injectStyles() {
         cursor: not-allowed;
         opacity: 0.6;
       }
-      /* --- END MODIFICATION --- */
       .chatgptree-output-container {
         width: 100%;
         margin-bottom: 12px;
@@ -272,7 +291,6 @@ function injectStyles() {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       }
       
-      /* --- NEW: Piston Consent Dialog --- */
       .chatgptree-consent-overlay {
         position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100002;
         background: rgba(0, 0, 0, 0.6);
@@ -333,9 +351,7 @@ function injectStyles() {
         background-color: rgba(255, 255, 255, 0.1);
         border-color: #9ca3af;
       }
-      /* --- END Piston Consent Dialog --- */
 
-       /* --- START: VISUAL REFRESH FOR COMPOSER --- */
       .chatgptree-expand-btn {
         display: flex;
         align-items: center;
@@ -393,14 +409,13 @@ function injectStyles() {
         margin: 0;
         padding-bottom: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        /* --- FIX: Center the title text to avoid the top-left button --- */
         text-align: center;
       }
       #chatgptree-composer-textarea {
         flex-grow: 1;
         width: 100%;
         background: rgba(0, 0, 0, 0.3);
-        color: #f9fafb; /* Bright white text for high contrast */
+        color: #f9fafb;
         border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         padding: 16px;
@@ -439,7 +454,6 @@ function injectStyles() {
       }
       .chatgptree-composer-close-btn {
         position: absolute;
-        /* --- FIX: Move higher up and to the left, inside the padding area --- */
         top: 16px;
         left: 16px;
         width: 36px;
@@ -462,18 +476,13 @@ function injectStyles() {
         background: rgba(255, 255, 255, 0.4);
         transform: scale(1.1);
       }
-      /* --- END: VISUAL REFRESH FOR COMPOSER --- */
 
-      /* --- START: Token Counter --- */
       .chatgptree-token-counter {
-        /* Positioning */
         position: fixed;
         top: 7px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 100000;
-        
-        /* Visuals */
         padding: 8px 12px;
         background-color: rgba(35, 39, 47, 0.9);
         color: #6ee7b7;
@@ -484,26 +493,23 @@ function injectStyles() {
         white-space: nowrap;
         user-select: none;
         box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-        
-        /* Let JS control visibility to prevent flashing on load */
         display: none;
       }
-      /* --- END: Token Counter --- */
     `;
     document.head.appendChild(style);
-}
+  }
 
-/**
- * Injects bookmark star icons into any chat history items that are missing them.
- * This function is designed to be run multiple times safely.
- * @param {Map<string, {id: string, title: string}>} bookmarksMap A map of bookmarked chat IDs.
- */
-function renderBookmarkStars(bookmarksMap) {
+  /**
+   * Injects bookmark star icons into any chat history items that are missing them.
+   * This function is designed to be run multiple times safely.
+   * @param {Map<string, {id: string, title: string}>} bookmarksMap A map of bookmarked chat IDs.
+   */
+  function renderBookmarkStars(bookmarksMap) {
     // Select ALL chat items, regardless of any prior injection.
     const chatItems = document.querySelectorAll('a[href^="/c/"]');
 
     chatItems.forEach(item => {
-        // The new, more reliable condition: if this item already has our button, do nothing.
+        // If this item already has our button, do nothing.
         if (item.querySelector('.chatgptree-bookmark-btn')) {
             return;
         }
@@ -525,9 +531,15 @@ function renderBookmarkStars(bookmarksMap) {
         if (bookmarksMap.has(chatId)) {
             starBtn.classList.add('active');
             starBtn.setAttribute('aria-label', 'Remove bookmark');
+            // CHANGED: Set the title attribute for the native browser tooltip.
+            starBtn.setAttribute('title', 'Remove ChatGPTree Bookmark');
         } else {
             starBtn.setAttribute('aria-label', 'Add bookmark');
+            // CHANGED: Set the title attribute for the native browser tooltip.
+            starBtn.setAttribute('title', 'Add ChatGPTree Bookmark');
         }
+
+        // REMOVED: No more mouseover/mouseout event listeners needed.
 
         trailingContainer.prepend(starBtn);
     });
