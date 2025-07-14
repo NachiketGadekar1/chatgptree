@@ -78,14 +78,17 @@
 /* Toggle Switch Styles */
 .toggle-container {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  margin-top: 2rem;
-  padding: 10px 0;
+  justify-content: center;
+  margin: 24px 0;
 }
 
 .toggle-label {
-  margin-left: 12px;
-  font-size: 0.95rem;
+  margin-top: 10px;
+  font-size: 1.2em;
+  font-weight: 500;
+  text-align: center;
   color: #e0e0e0;
   user-select: none;
 }
@@ -93,8 +96,8 @@
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 50px;
-  height: 28px;
+  width: 100px;
+  height: 54px;
   flex-shrink: 0;
 }
 
@@ -111,33 +114,33 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #4b5563; /* Gray when off */
+  background-color: #ccc;
   transition: .4s;
-  border-radius: 28px;
+  border-radius: 34px;
 }
 
 .slider:before {
   position: absolute;
   content: "";
-  height: 20px;
-  width: 20px;
-  left: 4px;
-  bottom: 4px;
+  height: 44px;
+  width: 44px;
+  left: 5px;
+  bottom: 5px;
   background-color: white;
   transition: .4s;
   border-radius: 50%;
 }
 
 input:checked + .slider {
-  background-color: #6ee7b7; /* Green when on */
+  background-color: #6ee7b7;
 }
 
 input:focus + .slider {
-  box-shadow: 0 0 1px #6ee7b7;
+  box-shadow: 0 0 2px #6ee7b7;
 }
 
 input:checked + .slider:before {
-  transform: translateX(22px);
+  transform: translateX(46px);
 }
 
 /* Tab Styles */
