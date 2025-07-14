@@ -84,38 +84,43 @@
     }
   }
 
-  /**
-   * Creates the composer overlay and attaches its event listeners.
-   */
-  function createComposerOverlay() {
-      if (document.querySelector('.chatgptree-composer-overlay')) return;
+/**
+ * Creates the composer overlay and attaches its event listeners.
+ */
+function createComposerOverlay() {
+    if (document.querySelector('.chatgptree-composer-overlay')) return;
 
-      const overlay = document.createElement('div');
-      overlay.className = 'chatgptree-composer-overlay';
-      overlay.innerHTML = `
-        <div class="chatgptree-composer-container">
-          <h3 class="chatgptree-composer-title">Expanded Composer</h3>
-          <button class="chatgptree-composer-close-btn">×</button>
-          <textarea id="chatgptree-composer-textarea" placeholder="Type your message here..."></textarea>
+    const overlay = document.createElement('div');
+    overlay.className = 'chatgptree-composer-overlay';
+    overlay.innerHTML = `
+      <div class="chatgptree-composer-container">
+        <h3 class="chatgptree-composer-title">Expanded Composer</h3>
+        <button class="chatgptree-composer-close-btn" title="Close Composer (Esc)">×</button>
+        <textarea id="chatgptree-composer-textarea" placeholder="Type your message here..."></textarea>
+        <div class="chatgptree-composer-bottom-row">
+          <div id="chatgptree-autocomplete-bar"></div>
           <button id="chatgptree-composer-send-btn">Send Message</button>
         </div>
-      `;
-      document.body.appendChild(overlay);
+      </div>
+    `;
+    document.body.appendChild(overlay);
 
-      const sendBtn = overlay.querySelector('#chatgptree-composer-send-btn');
-      const textarea = overlay.querySelector('#chatgptree-composer-textarea');
+    const sendBtn = overlay.querySelector('#chatgptree-composer-send-btn');
+    const textarea = overlay.querySelector('#chatgptree-composer-textarea');
 
-      // These listeners now correctly reference functions within this same file.
-      if (sendBtn) sendBtn.onclick = handleSendFromOverlay;
-      if (textarea) {
-          textarea.onkeydown = (e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault(); // Prevent new line
-                  handleSendFromOverlay();
-              }
-          };
-      }
-  }
+    // These listeners now correctly reference functions within this same file.
+    if (sendBtn) sendBtn.onclick = handleSendFromOverlay;
+    if (textarea) {
+        // Reverted to simpler, more robust logic.
+        // The autocomplete keydown handler will prevent this from firing when it's active.
+        textarea.onkeydown = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent new line
+                handleSendFromOverlay();
+            }
+        };
+    }
+}
 
   /**
    * Pastes text from our overlay into the real chatbox and clicks send.
@@ -175,8 +180,16 @@ function toggleComposerOverlay() {
     if (isVisible) {
         textarea.focus();
         document.addEventListener('keydown', handleComposerEscapeKey);
+        // Initialize autocomplete when composer opens
+        if (window.chatGPTreeAutocomplete) {
+            window.chatGPTreeAutocomplete.initialize(textarea);
+        }
     } else {
         document.removeEventListener('keydown', handleComposerEscapeKey);
+        // Destroy autocomplete when composer closes
+        if (window.chatGPTreeAutocomplete) {
+            window.chatGPTreeAutocomplete.destroy();
+        }
     }
     
     // Update the counter's visibility whenever the composer is toggled.

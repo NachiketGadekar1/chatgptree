@@ -401,6 +401,7 @@ function injectStyles() {
         flex-direction: column;
         gap: 16px;
         position: relative;
+        justify-content: space-between; /* Pushes send button to bottom */
       }
       .chatgptree-composer-title {
         color: #6ee7b7;
@@ -433,6 +434,42 @@ function injectStyles() {
       }
       #chatgptree-composer-textarea::placeholder {
         color: #9ca3af;
+      }
+      #chatgptree-autocomplete-bar {
+        flex-grow: 1;
+        display: none; /* Hidden by default, becomes 'flex' when active */
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chatgptree-suggestion-item {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: #d1d5db;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .chatgptree-suggestion-item:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: #6ee7b7;
+        color: #f9fafb;
+      }
+      .chatgptree-suggestion-item.active {
+        background-color: #6ee7b7;
+        border-color: #6ee7b7;
+        color: #23272f;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      }
+      .chatgptree-composer-bottom-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        min-height: 42px; /* Reserve space to prevent layout shift */
       }
       #chatgptree-composer-send-btn {
         align-self: flex-end;

@@ -34,6 +34,8 @@
       ],
       "js": [
         "lib/gpt-tokenizer.js",
+        "lib/fuse.min.js",
+        "modules/autocomplete.js",
         "modules/utils.js",
         "modules/ui.js",
         "modules/tree.js",
@@ -51,7 +53,7 @@
   },
    "web_accessible_resources": [
     {
-      "resources": [ "runner.html", "runner_iframe.js" ],
+      "resources": [ "runner.html", "runner_iframe.js", "wordlist.json" ],
       "matches": [ "https://chat.openai.com/*", "https://chatgpt.com/*" ]
     }
   ],
