@@ -34,37 +34,58 @@ const STAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
-      /* --- NEW: Bookmark Button --- */
+      /* --- REVISED: Bookmark Button --- */
       .chatgptree-bookmark-btn {
         background: none;
         border: none;
         padding: 0;
-        margin: 0 4px 0 8px; /* Give it some space */
+        margin: 0 4px 0 8px;
         cursor: pointer;
         color: #8e8ea0; /* Default empty star color */
-        transition: color 0.2s ease, transform 0.2s ease;
+        transition: color 0.2s ease, transform 0.2s ease, opacity 0.15s ease;
         display: flex;
         align-items: center;
         justify-content: center;
+        
+        /* By default, star is invisible, matching other trailing icons. */
+        opacity: 0;
       }
-      .chatgptree-bookmark-btn:hover {
-        color: #e5e5e5;
+      
+      /* On hover of the parent chat item, the un-bookmarked star becomes visible. */
+      a.group:hover .chatgptree-bookmark-btn:not(.active) {
+        opacity: 1;
+      }
+
+      /* An active (bookmarked) star is ALWAYS visible and styled, even without hover.
+         This more specific selector wins against ChatGPT's default styles. */
+      a.group .chatgptree-bookmark-btn.active {
+        opacity: 1 !important;
+        color: #6ee7b7 !important;
+      }
+      
+      /* Hover effect for un-bookmarked stars. */
+      .chatgptree-bookmark-btn:not(.active):hover {
+        color: #6ee7b7; 
         transform: scale(1.15);
       }
-      .chatgptree-bookmark-btn.active {
-        color: #6ee7b7; /* Our theme green */
-      }
+
+      /* Hover effect for already bookmarked stars. */
       .chatgptree-bookmark-btn.active:hover {
-        color: #34d399;
+        color: #34d399 !important;
+        transform: scale(1.15);
       }
+
       .chatgptree-bookmark-btn svg {
         width: 16px;
         height: 16px;
         stroke: currentColor;
+        stroke-width: 2.5 !important; 
         fill: none;
       }
-      .chatgptree-bookmark-btn.active svg {
-        fill: currentColor;
+      
+      /* When the button is active, we fill the star. */
+      a.group .chatgptree-bookmark-btn.active svg {
+        fill: currentColor !important;
       }
       /* --- END Bookmark Button --- */
 

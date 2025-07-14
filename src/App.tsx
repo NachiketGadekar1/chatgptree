@@ -6,7 +6,7 @@ import BookmarksView from './BookmarksView';
 import './BookmarksView.css';
 
 // Define a type for the active tab
-type ActiveTab = 'main' | 'help' | 'bookmarks';
+type ActiveTab = 'home' | 'shortcuts' | 'bookmarks';
 
 // --- Main View Component ---
 const MainView: React.FC = () => {
@@ -62,44 +62,44 @@ const MainView: React.FC = () => {
 
 // --- Tabbed Sidebar Component ---
 function Sidebar() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('main');
+    const [activeTab, setActiveTab] = useState<ActiveTab>('home');
 
-  return (
-    <aside className="sidebar">
-      <div>
-        <h1 className="sidebar-title">chatgptree</h1>
+    return (
+        <aside className="sidebar">
+            <div>
+                <h1 className="sidebar-title">chatgptree</h1>
 
-        <div className="sidebar-tabs">
-          <button
-            className={`tab-btn ${activeTab === 'main' ? 'active' : ''}`}
-            onClick={() => setActiveTab('main')}
-          >
-            Main
-          </button>
-          <button
-            className={`tab-btn ${activeTab === 'bookmarks' ? 'active' : ''}`}
-            onClick={() => setActiveTab('bookmarks')}
-          >
-            Bookmarks
-          </button>
-          <button
-            className={`tab-btn ${activeTab === 'help' ? 'active' : ''}`}
-            onClick={() => setActiveTab('help')}
-          >
-            Help
-          </button>
-        </div>
+                <div className="sidebar-tabs">
+                    <button
+                        className={`tab-btn ${activeTab === 'home' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('home')}
+                    >
+                        Home
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'bookmarks' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('bookmarks')}
+                    >
+                        Bookmarks
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'shortcuts' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('shortcuts')}
+                    >
+                        Shortcuts
+                    </button>
+                </div>
 
-        <div className="tab-content">
-          {activeTab === 'main' && <MainView />}
-          {activeTab === 'bookmarks' && <BookmarksView />}
-          {activeTab === 'help' && <HelpView />}
-        </div>
-      </div>
+                <div className="tab-content">
+                    {activeTab === 'home' && <MainView />}
+                    {activeTab === 'bookmarks' && <BookmarksView />}
+                    {activeTab === 'shortcuts' && <HelpView />}
+                </div>
+            </div>
 
-      <div className="sidebar-footer">v0.9.0</div>
-    </aside>
-  );
+            <div className="sidebar-footer">v0.9.0</div>
+        </aside>
+    );
 }
 
 function App() {
