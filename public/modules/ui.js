@@ -576,8 +576,6 @@ function injectStyles() {
             starBtn.setAttribute('title', 'Add ChatGPTree Bookmark');
         }
 
-        // REMOVED: No more mouseover/mouseout event listeners needed.
-
         trailingContainer.prepend(starBtn);
     });
 }
@@ -663,7 +661,7 @@ function renderButtons() {
   }
 }
 
-  /**
+ /**
  * Creates the global tooltip element for jump buttons if it doesn't exist.
  */
 function createJumpTooltip() {
@@ -842,7 +840,6 @@ function createTreeOverlay() {
       </div>
     `;
     document.body.appendChild(overlay);
-    // REMOVED: closeBtn.onclick is now handled by the global listener
   }
   return overlay;
 }
@@ -962,7 +959,6 @@ function toggleComposerOverlay() {
 function renderTokenCounter() {
     let tokenCounter = document.getElementById('chatgptree-token-counter');
 
-    // If it doesn't exist, create it.
     if (!tokenCounter) {
         tokenCounter = document.createElement('div');
         tokenCounter.id = 'chatgptree-token-counter';
@@ -977,5 +973,4 @@ function renderTokenCounter() {
             console.log('[ChatGPTree DBG] Token counter element re-parented to body.');
         }
     }
-    // No need to update count here, updateTokenCount will be called by observer or init
 }

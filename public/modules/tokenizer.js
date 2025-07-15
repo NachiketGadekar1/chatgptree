@@ -1,5 +1,3 @@
-// --- START OF FILE modules/tokenizer.js ---
-
 (function() {
   'use strict';
 

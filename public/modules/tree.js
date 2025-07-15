@@ -1,5 +1,3 @@
-// --- START OF FILE modules/tree.js ---
-
 // ============================================================================
 // TREE DATA MANAGEMENT
 // ============================================================================
@@ -315,4 +313,3 @@ function initializePanningEvents(container, viewportGroup) {
 
     container.addEventListener('mousedown', startPan);
 }
-// --- END OF FILE modules/tree.js ---
