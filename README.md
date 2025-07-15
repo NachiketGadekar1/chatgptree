@@ -1,46 +1,62 @@
-# Getting Started with Create React App
+# chatgptree
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A browser extension that enhances the ChatGPT web interface with an interactive conversation tree, in-browser code execution, bookmarks, and other powerful tools.
 
-## Available Scripts
+![Shields.io Badges](https://img.shields.io/badge/version-0.1.0-blue)
+![Shields.io Badges](https://img.shields.io/badge/platform-Chrome%2C%20Edge-brightgreen)
+![Shields.io Badges](https://img.shields.io/badge/license-MIT-lightgrey)
 
-In the project directory, you can run:
+## Introduction
 
-### `npm start`
+ChatGPTree is a browser extension built to augment the standard ChatGPT interface. It introduces a suite of features designed for power users and developers, focusing on better navigation, prompt management, and interactivity. It allows you to visualize conversation branches, run code snippets directly, bookmark important chats, and control the interface with a rich set of keyboard shortcuts.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Key Features
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+-   **Conversation Tree View**: Visualize your entire chat history as an interactive, pannable, and zoomable SVG tree. Easily track and navigate between different conversation branches, ensuring you never lose context in complex, forked discussions.
 
-### `npm test`
+-   **Code Execution**: Run code blocks directly in the chat interface. This feature supports client-side languages (HTML, JavaScript) in a sandboxed iframe and over 70 server-side languages (Python, C++, Go, etc.) via the Piston API.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+-   **Expanded Composer**: Open a large, distraction-free text editor for writing long or complex prompts. The composer includes word-based autocomplete to help speed up your writing process.
 
-### `npm run build`
+-   **Prompt Jump Buttons**: Every prompt in the conversation is assigned an index. Numbered buttons appear on the right side of the screen, allowing you to instantly jump to any part of the chat. These can also be triggered with `Alt` + `[1-9]` shortcuts.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+-   **Full Keyboard Control**: A comprehensive set of keyboard shortcuts allows for efficient, mouse-free operation. Navigate branches, open the tree view, stop code generation, and more.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+-   **Chat Bookmarking**: Save important or frequently-used chats with a single click in the chat history sidebar. Access all your bookmarks from the extension's side panel for quick access.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+-   **Token Counter**: A simple, unobtrusive counter displays the total token count for the current conversation, helping you keep track of context length.
 
-### `npm run eject`
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+## Getting Started
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+You can install and use chatgptree in two ways.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+### From the Web Store (Recommended)
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+*Coming soon. Links to the official Chrome Web Store and other stores will be placed here.*
 
-## Learn More
+### From Source (For Developers)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+If you want to build the extension from the source code, follow these steps:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/nachiketgadekar1/chatgptree.git
+    cd chatgptree
+    ```
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Build the extension:**
+    ```bash
+    npm run build
+    ```
+    This will create a `build` directory in the project folder.
+
+4.  **Load the extension in your browser:**
+    -   Open your browser and navigate to `chrome://extensions` (for Chrome) or `edge://extensions` (for Edge).
+    -   Enable "Developer mode".
+    -   Click "Load unpacked".
+    -   Select the `build` directory that was created in the previous step.
+
