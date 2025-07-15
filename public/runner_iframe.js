@@ -26,6 +26,7 @@ function setupLayout(language) {
         height: 100vh; 
         font-family: sans-serif; 
         background-color: var(--chatgptree-dark-bg);
+        position: relative; /* For the overlay */
       }
       #visual-output { 
         flex: 1; 
@@ -72,9 +73,40 @@ function setupLayout(language) {
       }
       .chatgptree-log-alert { color: #facc15; font-weight: bold; }
       .chatgptree-log-stderr { color: var(--chatgptree-stderr-red); }
+
+      /* Loading Spinner Styles */
+      #loading-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: var(--chatgptree-dark-bg);
+        display: none; /* Initially hidden */
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        color: var(--chatgptree-light-text);
+        font-family: monospace;
+        font-size: 1rem;
+        z-index: 10;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.2);
+        border-top-color: var(--chatgptree-green);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
     </style>
   `;
   document.body.innerHTML = `
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <div>Running code...</div>
+    </div>
     <div id="visual-output"></div>
     <div id="console-area"><div class="console-header">🌳Output</div><div id="log-entries"></div></div>
   `;
@@ -134,7 +166,11 @@ window.addEventListener('message', (event) => {
       setupInterceptors(visualOutput);
   }
 
-  if (type === 'EXECUTE_CODE') {
+  const loadingOverlay = document.getElementById('loading-overlay');
+
+  if (type === 'SHOW_LOADING') {
+      if (loadingOverlay) loadingOverlay.style.display = 'flex';
+  } else if (type === 'EXECUTE_CODE') {
     try {
       if (language === 'javascript' || language === 'js') {
         const script = document.createElement('script');
@@ -162,19 +198,44 @@ window.addEventListener('message', (event) => {
       console.error(`Error: ${e.message}`);
     }
   } else if (type === 'PISTON_RESULT') {
-      if (result.message) { // API-level error
-          logToConsole(result.message, 'stderr');
+      if (loadingOverlay) loadingOverlay.style.display = 'none';
+      
+      // Priority 1: Handle a fundamentally invalid response from the API.
+      if (!result) {
+        logToConsole('[Execution Error]: Received an invalid or empty response from the API.', 'stderr');
+        return; // Stop processing
       }
-      if (result.run) {
-          if (result.run.stdout) {
-              logToConsole(result.run.stdout, 'log');
-          }
-          if (result.run.stderr) {
-              logToConsole(result.run.stderr, 'stderr');
-          }
-          if (!result.run.stdout && !result.run.stderr) {
-              logToConsole('[No output]', 'log');
-          }
+
+      let hasPrintedOutput = false;
+
+      // Priority 2: Check for a critical process termination signal. This is the most important failure reason.
+      // We must check `result.run` exists to prevent a TypeError.
+      if (result.run && result.run.signal) {
+          logToConsole(`[Execution Error]: Process was terminated by signal: ${result.run.signal}. This is often caused by excessive memory usage, infinite loops, or the code taking too long to run.`, 'stderr');
+          hasPrintedOutput = true;
+      }
+
+      // Priority 3: Check for a top-level API message (e.g., compile errors).
+      if (result.message) {
+          logToConsole(`[Piston API Message]: ${result.message}`, 'stderr');
+          hasPrintedOutput = true;
+      }
+
+      // Priority 4: If the process wasn't killed, check for standard error output.
+      if (result.run && !result.run.signal && result.run.stderr) {
+          logToConsole(result.run.stderr, 'stderr');
+          hasPrintedOutput = true;
+      }
+
+      // Priority 5: If the process wasn't killed and had no errors, check for standard output.
+      if (result.run && !result.run.signal && result.run.stdout) {
+          logToConsole(result.run.stdout, 'log');
+          hasPrintedOutput = true;
+      }
+
+      // Priority 6: The final fallback. If nothing has been printed yet, the code ran successfully with no output.
+      if (!hasPrintedOutput) {
+          logToConsole('[Execution completed with no output]', 'log');
       }
   }
 });

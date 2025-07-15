@@ -142,13 +142,12 @@
     outputContainer.appendChild(iframe);
     runnerContainer.insertAdjacentElement('afterend', outputContainer);
 
-    button.textContent = '🔽 Hide Output';
-
     iframe.onload = async () => {
         if (!iframe.contentWindow) return;
 
         if (CLIENT_SIDE_LANGUAGES.includes(language)) {
             iframe.contentWindow.postMessage({ type: 'EXECUTE_CODE', code, language }, '*');
+            button.textContent = '🔽 Hide Output';
         } else if (pistonRuntimesMap.has(language)) {
             const { piston_consent } = await chrome.storage.local.get('piston_consent');
             
@@ -156,6 +155,11 @@
                 button.disabled = true;
                 button.textContent = 'Running...';
                 
+                iframe.contentWindow.postMessage({ type: 'SHOW_LOADING', language }, '*');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30-second timeout
+
                 try {
                     const runtime = pistonRuntimesMap.get(language);
                     const response = await fetch('https://emkc.org/api/v2/piston/execute', {
@@ -165,14 +169,32 @@
                             language: runtime.language,
                             version: runtime.version,
                             files: [{ content: code }]
-                        })
+                        }),
+                        signal: controller.signal // Pass the abort signal to fetch
                     });
+                    
+                    if (!response.ok) {
+                        let errorBody = 'Could not read error response.';
+                        try { errorBody = await response.text(); } catch (e) {}
+                        throw new Error(`API request failed with status ${response.status}. Response: ${errorBody}`);
+                    }
+
                     const result = await response.json();
+                    
+                    // *** DEBUGGING STEP 1 ***
+                    console.log('[ChatGPTree Runner DBG] Received from Piston API:', JSON.parse(JSON.stringify(result)));
+
                     iframe.contentWindow.postMessage({ type: 'PISTON_RESULT', result, language }, '*');
                 } catch (error) {
-                    const result = { run: { stderr: `Execution failed: ${error.message}` } };
+                    let result;
+                    if (error.name === 'AbortError') {
+                        result = { run: { stderr: `[ChatGPTree Runner] Execution failed: The request timed out after 30 seconds.` } };
+                    } else {
+                        result = { run: { stderr: `[ChatGPTree Runner] Execution failed: ${error.message}` } };
+                    }
                     iframe.contentWindow.postMessage({ type: 'PISTON_RESULT', result, language }, '*');
                 } finally {
+                    clearTimeout(timeoutId); // Clear the timeout
                     button.disabled = false;
                     button.textContent = '🔽 Hide Output';
                 }
