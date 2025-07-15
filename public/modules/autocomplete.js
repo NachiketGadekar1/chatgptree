@@ -6,6 +6,7 @@
   let wordlist = null;
   let textarea = null;
   let suggestionBar = null;
+  let debouncedHandleInput = null;
 
   let state = {
     isVisible: false,
@@ -25,19 +26,26 @@
   async function loadWordlistAndInitFuse() {
     try {
       const response = await fetch(chrome.runtime.getURL('wordlist.json'));
-      const wordlistObject = await response.json();
-      // The new wordlist is an object, so we extract its keys to get an array of words.
-      wordlist = Object.keys(wordlistObject);
+      wordlist = await response.json();
+      
+      // Configure Fuse.js to use frequency for better relevance.
+      // We search the 'word' field, but weigh the 'freq' field heavily in sorting.
+      // A lower 'freq' number means a more common word.
       const options = {
         isCaseSensitive: false,
         includeScore: true,
-        threshold: 0.4, // Adjust for more/less fuzziness
-        keys: ['word'],
+        shouldSort: true,
+        keys: [
+          { name: 'word', weight: 0.6 },
+          { name: 'freq', weight: 0.4 }
+        ],
+        // Lower threshold means stricter matching
+        threshold: 0.4,
       };
-      // Fuse expects objects, so we map our string array
-      fuse = new Fuse(wordlist.map(w => ({ word: w })), options);
+      
+      fuse = new Fuse(wordlist, options);
       console.log('[ChatGPTree] Autocomplete wordlist loaded and Fuse.js initialized.');
-    } catch (error) { // <-- Fixed: Added the opening brace
+    } catch (error) {
       console.error('[ChatGPTree] Failed to load wordlist for autocomplete:', error);
     }
   }
@@ -55,7 +63,10 @@
     textarea = textareaElement;
     suggestionBar = document.getElementById('chatgptree-autocomplete-bar');
 
-    textarea.addEventListener('input', handleInput);
+    // Debounce the input handler to prevent lag
+    debouncedHandleInput = debounce(handleInput, 150);
+
+    textarea.addEventListener('input', debouncedHandleInput);
     textarea.addEventListener('keydown', handleKeydown, true); // Use capture phase for Tab/Enter
     textarea.addEventListener('blur', hideSuggestions);
     suggestionBar.addEventListener('click', handleSuggestionClick);
@@ -68,7 +79,7 @@
    */
   function destroy() {
     if (textarea) {
-      textarea.removeEventListener('input', handleInput);
+      textarea.removeEventListener('input', debouncedHandleInput);
       textarea.removeEventListener('keydown', handleKeydown, true);
       textarea.removeEventListener('blur', hideSuggestions);
     }
@@ -96,6 +107,7 @@
     state.wordStartIndex = startIndex;
 
     const results = fuse.search(word);
+    // The result from Fuse is now an object like { item: {word: 'the', freq: 1}, score: 0.123 }
     const suggestions = results.slice(0, MAX_SUGGESTIONS).map(res => res.item.word);
 
     if (suggestions.length > 0) {
@@ -199,8 +211,8 @@
     textarea.focus();
     textarea.setSelectionRange(newCursorPos, newCursorPos);
     
-    // Manually trigger an input event so other listeners (if any) are aware
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    // Manually trigger the debounced input event so the suggestions disappear
+    debouncedHandleInput();
 
     hideSuggestions();
   }
@@ -222,6 +234,26 @@
 
     const word = text.substring(startIndex, caretPos);
     return { word, startIndex };
+  }
+  
+  /**
+   * Creates a debounced function that delays invoking `func` until after `wait`
+   * milliseconds have elapsed since the last time the debounced function was invoked.
+   * NOTE: This is a local copy to make the module self-contained.
+   * @param {Function} func The function to debounce.
+   * @param {number} wait The number of milliseconds to delay.
+   * @returns {Function} Returns the new debounced function.
+   */
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
   }
 
   // --- EXPOSE MODULE ---
