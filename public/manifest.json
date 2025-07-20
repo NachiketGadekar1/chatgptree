@@ -4,8 +4,8 @@
   "description": "Enhance the ChatGPT web experience with a sidebar, chat overview, and more.",
   "version": "0.1.0",
   "icons": {
-    "16": "favicon.ico",
-    "32": "favicon.ico",
+    "16": "logo16.png",
+    "32": "logo32.png",
     "48": "logo192.png",
     "128": "logo512.png"
   },
