@@ -1,5 +1,4 @@
 # chatgptree
-
 ![Logo512](public/logo192.png)
 
 A browser extension that enhances the ChatGPT web interface with an interactive conversation tree, in-browser code execution, bookmarks, and other powerful tools.

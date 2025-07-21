@@ -55,11 +55,13 @@
 }
 
 .sidebar-title {
-  font-size: 1.7rem;
+  font-size: 2rem; /* Increased size */
   font-weight: 800;
+  margin-top: 0; /* Brought closer to the top */
   margin-bottom: 0.5rem;
   letter-spacing: 1.2px;
   color: #6ee7b7;
+  text-align: center;
 }
 
 .sidebar-desc {
@@ -73,6 +75,38 @@
   color: #6ee7b7;
   margin-top: 2rem;
   opacity: 0.7;
+}
+
+/* Footer link styles */
+.sidebar-footer-content .footer-link {
+  color: #6ee7b7;
+  text-decoration: none;
+  font-size: 0.92rem;
+  opacity: 0.7;
+  transition: opacity 0.2s ease-in-out;
+  margin-left: 1rem;
+}
+
+.sidebar-footer-content .footer-link:hover {
+  opacity: 1;
+}
+
+/* Footer content layout */
+.sidebar-footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Footer version styling */
+.footer-version {
+  color: #6ee7b7;
+  opacity: 0.7;
+}
+
+/* Footer review link styling */
+.footer-review {
+  margin-left: auto;
 }
 
 /* Toggle Switch Styles */
@@ -177,4 +211,89 @@ input:checked + .slider:before {
 
 .tab-content {
   /* No specific styles needed, just a container */
+}
+
+/* Features Overview Section */
+.features-overview {
+  margin-top: 1rem;
+}
+
+.features-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background-color: transparent;
+  border: 1px solid #3a3f4b;
+  border-radius: 5px;
+  padding: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #a0a0a0;
+  text-align: left;
+  transition: all 0.2s ease-in-out;
+}
+
+.features-toggle:hover {
+  background-color: #2a2e37;
+  border-color: #4a4f5a;
+  color: #fff;
+}
+
+.arrow-icon {
+  margin-right: 8px;
+  transition: transform 0.3s ease-in-out;
+  font-size: 12px;
+}
+
+.arrow-icon.collapsed {
+  transform: rotate(0deg);
+}
+
+.arrow-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.features-content {
+  margin-top: 1rem;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  font-size: 0.9rem;
+  color: #b5b5b5;
+}
+
+.features-content h2 {
+  margin-top: 0;
+  margin-bottom: 0.8rem;
+  font-size: 1.1rem;
+  color: #6ee7b7;
+  font-weight: 600;
+}
+
+.features-content p {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: #b5b5b5;
+  line-height: 1.5;
+}
+
+.features-content ul {
+  list-style-type: disc;
+  margin-left: 0;
+  padding-left: 1.2rem; /* Indent the list slightly */
+  margin-bottom: 1rem;
+}
+
+.features-content ul li {
+  margin-bottom: 0.8rem;
+  font-size: 0.9rem;
+  color: #b5b5b5;
+  line-height: 1.5;
+  padding-left: 0.2rem; /* Small space between bullet and text */
+}
+
+/* Updated styles for main points */
+.features-content ul li strong {
+  color: #6ee7b7;
 }

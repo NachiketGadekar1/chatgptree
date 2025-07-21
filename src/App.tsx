@@ -40,9 +40,15 @@ const MainView: React.FC = () => {
     });
   };
 
+  const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
+
+  const toggleFeaturesOverview = () => {
+    setIsFeaturesExpanded(!isFeaturesExpanded);
+  };
+
   return (
     <>
-      <p className="sidebar-desc">Enhance your ChatGPT experience with a tree view and more.</p>
+      <p className="sidebar-desc">ChatGpt extension for Powerusers</p>
       <div className="toggle-container">
         <label className="toggle-switch">
           <input
@@ -55,6 +61,55 @@ const MainView: React.FC = () => {
         <span className="toggle-label">
           {isEnabled ? 'Extension On' : 'Extension Off'}
         </span>
+      </div>
+      <div className="features-overview">
+        <button className="features-toggle" onClick={toggleFeaturesOverview}>
+          <span className={`arrow-icon ${isFeaturesExpanded ? 'expanded' : 'collapsed'}`}>▶</span>
+          Features Overview
+        </button>
+        {isFeaturesExpanded && (
+          <div className="features-content">
+            <h2>Features Overview</h2>
+            <p>The extension injects several distinct features into the ChatGPT web application. All functionality can be toggled on or off from the main extension panel.</p>
+            <ul>
+              <li>
+                <strong>Create a Branch:</strong> Branching occurs when you go back and edit a previous prompt, leading to a new conversation path. The extension automatically tracks this.
+                <ol>
+                  <li><strong>Locate the Prompt:</strong> Scroll up in your chat to the user prompt where you wish to create a branch.</li>
+                  <li><strong>Enter Edit Mode:</strong> Hover over the prompt and click the 'Create a branch here' button (not available for the first message).</li>
+                  <li><strong>Modify and Submit:</strong> Change the text in the prompt. Once you are satisfied, click the 'Send' button.</li>
+                </ol>
+                ChatGPT will now generate a new response based on your edited prompt. From the extension's perspective, you have just created a new branch. The original path still exists, but you are now on a new one. Repeat this process to create multiple branches from any point in the conversation, use the tree view to quickly navigate between the branches and see an overview of your conversation.
+              </li>
+              <li>
+                <strong>Conversation Tree View:</strong> For chats with multiple branches, a "Tree" button is added to the UI. Clicking it opens an overlay containing an interactive SVG visualization of the entire conversation structure. You can pan and zoom the tree to inspect different branches. Clicking any node in the tree will navigate the main chat window to that specific point in the conversation. Tree View is not avilable for conversations created before the extension was installed.
+              </li>
+              <li>
+                <strong>In-Browser Code Execution:</strong> A "▶️ Run Code" button is automatically added beneath code blocks. This feature operates in two modes:
+                <ul>
+                  <li>Client-Side: HTML and JavaScript code is executed in a sandboxed iframe within the page.</li>
+                  <li>Server-Side: Code written in other supported languages (e.g., Python, C++) is sent to the public Piston API for execution, and the output (stdout/stderr) is displayed directly below the code block. User consent is required before any code is sent externally.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Expanded Composer with Autocomplete:</strong> An "Expand" button is added near the prompt input field. This toggles a large composer overlay, providing a more spacious textarea for writing and editing long prompts. As you type in the composer, an autocomplete bar suggests common words to complete, which can be selected with the keyboard.
+              </li>
+              <li>
+                <strong>Prompt Jump Buttons:</strong> A list of numbered buttons is rendered on the right side of the screen, corresponding to each user prompt in the current conversation. Clicking a button immediately scrolls the view to that prompt. This allows for quick navigation within long chats without manual scrolling.
+              </li>
+              <li>
+                <strong>Keyboard Shortcuts:</strong> The extension provides a set of keyboard shortcuts to operate its features. Key bindings include Alt+T to toggle the tree view, Alt+C for the composer, Alt+[1-9] to activate the prompt jump buttons, and a context-aware Ctrl+Enter to send messages from any input field. Click the "Shortcuts" tab in the sidebar to view the full list of shortcuts.
+              </li>
+              <li>
+                <strong>Chat Bookmarks:</strong> A star icon is added next to each conversation in the chat history sidebar. Clicking this icon bookmarks the chat. A list of all bookmarked conversations is available for quick access within the "Bookmarks" tab of the extension's side panel.
+              </li>
+              <li>
+                <strong>Token Counter:</strong> A small, unobtrusive UI element displays the total token count of the current conversation. 
+              </li>
+            </ul>
+            <p>Have an idea for a feature? Create a discussion on the extensions GitHub page.</p>
+          </div>
+        )}
       </div>
     </>
   );
@@ -97,7 +152,13 @@ function Sidebar() {
                 </div>
             </div>
 
-            <div className="sidebar-footer">v0.9.0</div>
+            <div className="sidebar-footer">
+                    <div className="sidebar-footer-content">
+                        <span className="footer-version">v1.0.0</span>
+                        <a className="footer-link" href="https://github.com/NachiketGadekar1/chatgptree" target="_blank" rel="noopener noreferrer">Contribute</a>
+                        <a className="footer-link footer-review" href="https://chrome.google.com/webstore/detail/chatgptree" target="_blank" rel="noopener noreferrer">Review</a>
+                    </div>
+                </div>
         </aside>
     );
 }
