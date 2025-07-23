@@ -73,7 +73,7 @@ const MainView: React.FC = () => {
             <p>The extension injects several distinct features into the ChatGPT web application. All functionality can be toggled on or off from the main extension panel.</p>
             <ul>
               <li>
-                <strong>Create a Branch:</strong> Branching occurs when you go back and edit a previous prompt, leading to a new conversation path. The extension automatically tracks this.
+                <strong>Creating Branches:</strong> Branching occurs when you go back and edit a previous prompt, leading to a new conversation path. The extension automatically tracks this.
                 <ol>
                   <li><strong>Locate the Prompt:</strong> Scroll up in your chat to the user prompt where you wish to create a branch.</li>
                   <li><strong>Enter Edit Mode:</strong> Hover over the prompt and click the 'Create a branch here' button (not available for the first message).</li>
