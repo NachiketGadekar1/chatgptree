@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "chatgptree",
-  "description": "A browser extension that enhances the ChatGPT web interface with an interactive conversation tree, in-browser code execution, bookmarks, and other powerful tools.",
-  "version": "0.1.0",
+  "description": "Poweruser tools for ChatGPT, including an interactive conversation tree, code runner, expanded chatbox, bookmarks, and much more",
+  "version": "1.0.0",
   "icons": {
     "16": "logo16.png",
     "32": "logo32.png",
