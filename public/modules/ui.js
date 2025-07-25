@@ -464,6 +464,11 @@ function injectStyles() {
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       }
+      .chatgptree-suggestion-item.active .chatgptree-suggestion-hint {
+        opacity: 0.7;
+        font-weight: 400; /* Make hint less prominent than the word */
+        margin-right: 5px; /* Add space between hint and word */
+      }  
       .chatgptree-composer-bottom-row {
         display: flex;
         justify-content: space-between;

@@ -182,12 +182,24 @@
   }
 
   /**
-   * Updates which suggestion item has the 'active' class.
+   * Updates which suggestion item has the 'active' class and adds a "Tab:" hint.
    */
   function updateHighlight() {
     const items = suggestionBar.querySelectorAll('.chatgptree-suggestion-item');
     items.forEach((item, i) => {
-      item.classList.toggle('active', i === state.activeIndex);
+      // The original word is the source of truth, stored in our state.
+      const originalWord = state.suggestions[i];
+      if (!originalWord) return; // Safety check
+
+      if (i === state.activeIndex) {
+        item.classList.add('active');
+        // Add the hint to the active button's content using a styled span.
+        item.innerHTML = `<span class="chatgptree-suggestion-hint">Tab:</span> ${originalWord}`;
+      } else {
+        item.classList.remove('active');
+        // Ensure inactive buttons only show the word.
+        item.innerHTML = originalWord;
+      }
     });
   }
 
