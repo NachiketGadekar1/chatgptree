@@ -108,12 +108,19 @@
       const sendBtn = overlay.querySelector('#chatgptree-composer-send-btn');
       const textarea = overlay.querySelector('#chatgptree-composer-textarea');
 
-      // These listeners now correctly reference functions within this same file.
-      if (sendBtn) sendBtn.onclick = handleSendFromOverlay;
+      if (sendBtn) {
+          // Prevent the textarea from losing focus when the button is pressed.
+          // This stops the autocomplete bar from hiding and causing a layout shift,
+          // which was cancelling the initial click event.
+          sendBtn.onmousedown = (e) => {
+              e.preventDefault();
+          };
+          sendBtn.onclick = handleSendFromOverlay;
+      }
+      
       if (textarea) {
-          // Reverted to simpler, more robust logic.
-          // The autocomplete keydown handler will prevent this from firing when it's active.
           textarea.onkeydown = (e) => {
+              // The autocomplete keydown handler now prevents this from firing when active.
               if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault(); // Prevent new line
                   handleSendFromOverlay();

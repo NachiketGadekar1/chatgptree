@@ -14,9 +14,7 @@
   },
   "permissions": [
     "sidePanel",
-    "storage",
-    "scripting",
-    "activeTab"
+    "storage"
   ],
   "host_permissions": [
     "https://chat.openai.com/*",

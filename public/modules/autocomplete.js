@@ -132,7 +132,7 @@
       e.preventDefault();
       state.activeIndex = (state.activeIndex - 1 + state.suggestions.length) % state.suggestions.length;
       updateHighlight();
-    } else if (e.key === 'Tab' || e.key === 'Enter') {
+    } else if (e.key === 'Tab') {
       e.preventDefault();
       acceptSuggestion(state.activeIndex);
     } else if (e.key === 'Escape') {

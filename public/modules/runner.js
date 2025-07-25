@@ -34,51 +34,66 @@
     }
   }
 
-  function processNewCodeBlocks() {
-    // Don't run if runtimes haven't been loaded yet.
-    if (pistonRuntimes === null) {
+function processNewCodeBlocks() {
+  // Don't run if runtimes haven't been loaded yet.
+  if (pistonRuntimes === null) {
+    return;
+  }
+  // This selector targets both the standard <pre> blocks and the newer div-based containers.
+  const codeBlocks = document.querySelectorAll(
+    'pre, div.rounded-2xl.bg-token-sidebar-surface-primary'
+  );
+
+  codeBlocks.forEach(codeBlockContainer => {
+    // Self-healing check: If a runner container already exists for this block, skip it.
+    // This is more robust than a data-attribute which can be wiped out by React re-renders.
+    if (codeBlockContainer.nextElementSibling?.classList.contains('chatgptree-runner-container')) {
       return;
     }
-    const codeBlocks = document.querySelectorAll(
-      'pre:not([data-chatgptree-runner-processed]), div.rounded-2xl.bg-token-sidebar-surface-primary:not([data-chatgptree-runner-processed])'
-    );
-    codeBlocks.forEach(injectRunnerUI);
-  }
 
-  function injectRunnerUI(codeBlockContainer) {
-    if (codeBlockContainer.closest('[data-chatgptree-runner-processed]')) {
-      return;
-    }
-    codeBlockContainer.setAttribute('data-chatgptree-runner-processed', 'true');
-
-    let lang = '';
-    const langHeader = codeBlockContainer.querySelector('.text-token-text-secondary.px-4');
-    if (langHeader) {
-      lang = langHeader.textContent.toLowerCase().trim();
-    } else {
-      const codeElement = codeBlockContainer.querySelector('code');
-      const langClass = codeElement ? Array.from(codeElement.classList).find(c => c.startsWith('language-')) : null;
-      if (langClass) {
-        lang = langClass.replace('language-', '');
-      }
+    // Anti-duplication check: If the parent element is *also* a code block container,
+    // this element is a child (e.g., a <pre> inside a <div> container). We should skip it
+    // and let the parent container get the button.
+    if (codeBlockContainer.parentElement.matches('pre, div.rounded-2xl.bg-token-sidebar-surface-primary')) {
+        return;
     }
 
-    // Check both client-side and Piston languages
-    const isClientSide = CLIENT_SIDE_LANGUAGES.includes(lang);
-    const isPistonSupported = pistonRuntimesMap.has(lang);
+    injectRunnerUI(codeBlockContainer);
+  });
+}
 
-    if (isClientSide || isPistonSupported) {
-      const runnerContainer = document.createElement('div');
-      runnerContainer.className = 'chatgptree-runner-container';
-      const runButton = document.createElement('button');
-      runButton.className = 'chatgptree-run-btn';
-      runButton.textContent = '▶️ Run Code';
-      runButton.dataset.language = lang;
-      runButton.addEventListener('click', handleRunClick);
-      runnerContainer.appendChild(runButton);
-      codeBlockContainer.insertAdjacentElement('afterend', runnerContainer);
+function injectRunnerUI(codeBlockContainer) {
+  let lang = '';
+  // This targets the language name in the header of the code block.
+  const langHeader = codeBlockContainer.querySelector('.text-token-text-secondary.px-4');
+  if (langHeader) {
+    lang = langHeader.textContent.toLowerCase().trim();
+  } else {
+    // Fallback for blocks that might not have the header but have a class on the <code> tag.
+    const codeElement = codeBlockContainer.querySelector('code');
+    const langClass = codeElement ? Array.from(codeElement.classList).find(c => c.startsWith('language-')) : null;
+    if (langClass) {
+      lang = langClass.replace('language-', '');
     }
   }
+
+  // Check both client-side and Piston languages
+  const isClientSide = CLIENT_SIDE_LANGUAGES.includes(lang);
+  const isPistonSupported = pistonRuntimesMap.has(lang);
+
+  if (isClientSide || isPistonSupported) {
+    const runnerContainer = document.createElement('div');
+    runnerContainer.className = 'chatgptree-runner-container';
+    const runButton = document.createElement('button');
+    runButton.className = 'chatgptree-run-btn';
+    runButton.textContent = '▶️ Run Code';
+    runButton.dataset.language = lang;
+    runButton.addEventListener('click', handleRunClick);
+    runnerContainer.appendChild(runButton);
+    // Use insertAdjacentElement for clarity and safety.
+    codeBlockContainer.insertAdjacentElement('afterend', runnerContainer);
+  }
+}
 
   // Confirmation dialog for Piston API
   function showPistonConsentDialog(onConfirm) {

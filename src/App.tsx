@@ -92,7 +92,7 @@ const MainView: React.FC = () => {
                 </ul>
               </li>
               <li>
-                <strong>Expanded Composer with Autocomplete:</strong> An "Expand" button is added near the prompt input field. This toggles a large composer overlay, providing a more spacious textarea for writing and editing long prompts. As you type in the composer, an autocomplete bar suggests common words to complete, which can be selected with the keyboard.
+                <strong>Expanded Composer with Autocomplete:</strong> An "Expand" button is added near the prompt input field. This toggles a large composer overlay, providing a more spacious textarea for writing and editing long prompts. As you type in the composer, an autocomplete bar suggests common words to complete, the higlighted word can be selected by pressing tab, other words can be selected using arrow keys or the mouse.
               </li>
               <li>
                 <strong>Prompt Jump Buttons:</strong> A list of numbered buttons is rendered on the right side of the screen, corresponding to each user prompt in the current conversation. Clicking a button immediately scrolls the view to that prompt. This allows for quick navigation within long chats without manual scrolling.
