@@ -3,8 +3,7 @@
 
 A browser extension that enhances the ChatGPT web interface with an interactive conversation tree, in-browser code execution, bookmarks, and other powerful tools.
 
-![Shields.io Badges](https://img.shields.io/badge/version-0.1.0-blue)
-![Shields.io Badges](https://img.shields.io/badge/platform-Chrome%2C%20Edge-brightgreen)
+![Platform Support](https://img.shields.io/badge/platform-Chromium--Based%20Browsers-brightgreen)
 ![Shields.io Badges](https://img.shields.io/badge/license-MIT-lightgrey)
 
 
