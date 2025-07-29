@@ -31,6 +31,9 @@ const STAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 /**
  * Injects the required CSS styles into the page's head.
  */
+/**
+ * Injects the required CSS styles into the page's head.
+ */
 function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -88,6 +91,30 @@ function injectStyles() {
         fill: currentColor !important;
       }
       /* --- END Bookmark Button --- */
+
+      /* --- NEW: Red Blink Animation & Logged Out Button --- */
+      @keyframes chatgptree-red-blink {
+        0%, 100% { background-color: rgba(239, 68, 68, 0.8); border-color: #f87171; }
+        50% { background-color: rgba(239, 68, 68, 0.4); border-color: rgba(248, 113, 113, 0.5); }
+      }
+      .chatgptree-logged-out-btn {
+        position: fixed; top: 70px; right: 24px; z-index: 99999;
+        height: 36px;
+        padding: 0 12px;
+        gap: 6px;
+        margin: 0;
+        border: 2px solid #f87171; border-radius: 18px; font-size: 0.9rem; font-weight: 600;
+        cursor: pointer; outline: none; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        white-space: nowrap;
+        background-color: rgba(239, 68, 68, 0.8);
+        color: #fff;
+        animation: chatgptree-red-blink 1.5s ease-in-out 2; /* Blink twice */
+      }
+      .chatgptree-logged-out-btn:hover {
+        background-color: rgba(239, 68, 68, 1.0);
+      }
+      /* --- END NEW --- */
 
       .chatgptree-bookmark-tooltip {
         position: fixed;
@@ -540,6 +567,23 @@ function injectStyles() {
     `;
     document.head.appendChild(style);
   }
+
+/**
+ * Renders a special button indicating the user is logged out.
+ */
+function renderLoggedOutButton() {
+  // First, remove any other tree buttons that might exist to avoid duplicates
+  document.querySelector('.chatgptree-tree-btn')?.remove();
+  document.querySelector('.chatgptree-logged-out-btn')?.remove();
+
+  const loggedOutBtn = document.createElement('button');
+  loggedOutBtn.className = 'chatgptree-logged-out-btn';
+  loggedOutBtn.textContent = '🌳 Login Required';
+  loggedOutBtn.setAttribute('title', 'ChatGPTree requires you to be logged in.');
+  
+  // The click handler is managed by the global click listener in contentScript.js
+  document.body.appendChild(loggedOutBtn);
+}
 
   /**
    * Injects bookmark star icons into any chat history items that are missing them.

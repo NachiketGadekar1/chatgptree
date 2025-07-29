@@ -222,6 +222,15 @@
     const target = event.target;
     // console.log('[ChatGPTree DBG] Global click detected. Target:', target); // Can be noisy
 
+    // --- NEW: Logged Out Button ---
+    const loggedOutBtn = target.closest('.chatgptree-logged-out-btn');
+    if (loggedOutBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        showToast('ChatGPTree is designed for the logged-in version of ChatGPT. Please log in to use its features.', 7000, 'info');
+        return;
+    }
+
     // --- Bookmark Button ---
     const bookmarkBtn = target.closest('.chatgptree-bookmark-btn');
     if (bookmarkBtn) {
@@ -384,10 +393,14 @@
     stopLifecycleManager();
     cleanup();
 
+    // --- MODIFICATION START ---
+    // Cleanup UI elements including the special logged-out button
     document.querySelector('.chatgptree-composer-overlay')?.remove();
     document.querySelector('.chatgptree-token-counter')?.remove();
     document.getElementById('chatgptree-jump-tooltip')?.remove();
     document.querySelectorAll('.chatgptree-bookmark-btn').forEach(btn => btn.remove());
+    document.querySelector('.chatgptree-logged-out-btn')?.remove(); 
+    // --- MODIFICATION END ---
     
     if (window.chatGPTreeObserver) {
         window.chatGPTreeObserver.disconnect();
@@ -401,6 +414,7 @@
     isExtensionGloballyEnabled = false;
     console.log('[ChatGPTree] Extension disabled.');
   }
+
 
   // Listen for toggle messages from the sidebar
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -428,21 +442,46 @@
           return;
         }
         pollCount++;
+        
+        // Logged-in state indicators
         const mainElement = document.querySelector('main');
         const promptInput = document.getElementById('prompt-textarea');
-        const navElement = document.querySelector('nav'); // Check for the nav sidebar
+        const navElement = document.querySelector('nav');
         
-        console.log(`[ChatGPTree DBG] Poll #${pollCount}: main: ${!!mainElement}, prompt: ${!!promptInput}, nav: ${!!navElement}`);
+        // Logged-out state indicator
+        const loginButton = document.querySelector('button[data-testid="login-button"]');
 
-        if (mainElement && promptInput && navElement) { // Ensure navElement is also present
-            console.log(`[ChatGPTree DBG] SUCCESS: Chat interface detected. Initializing.`);
+        if (mainElement && promptInput && navElement) {
+            console.log(`[ChatGPTree DBG] SUCCESS: Logged-in interface detected. Initializing.`);
             clearInterval(intervalId);
+            document.querySelector('.chatgptree-logged-out-btn')?.remove(); // Clean up just in case
             initialize();
+        } else if (loginButton) {
+            console.log(`[ChatGPTree DBG] Logged-out state detected. Entering disabled mode.`);
+            clearInterval(intervalId);
+            enterLoggedOutState();
         } else if (pollCount > 40) { // Timeout after 10 seconds
-            console.error('[ChatGPTree DBG] ERROR: Timed out waiting for chat interface.');
+            console.error('[ChatGPTree DBG] ERROR: Timed out waiting for a recognizable page state.');
             clearInterval(intervalId);
         }
     }, 250);
+  }
+
+  function enterLoggedOutState() {
+      if (!isExtensionGloballyEnabled) return;
+      
+      // First, run a full cleanup of any active features.
+      disableExtension();
+      
+      // Re-enable the global flag so we can show our button.
+      isExtensionGloballyEnabled = true;
+      document.body.addEventListener('click', handleGlobalClick, true); // Re-add click listener for our button.
+      
+      // Render the specific button for the logged-out state.
+      if (window.renderLoggedOutButton) {
+        injectStyles(); // Make sure styles are present
+        window.renderLoggedOutButton();
+      }
   }
 
   /**
