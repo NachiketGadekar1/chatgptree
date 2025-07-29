@@ -194,10 +194,20 @@ function createConnection(x1, y1, x2, y2) {
  * Main function to render the entire SVG tree visualization.
  */
 function updateTreeVisualization() {
-    const treeRoot = document.querySelector('.chatgptree-tree');
-    if (!treeRoot) return;
-    treeRoot.innerHTML = '';
+    const overlay = document.querySelector('.chatgptree-overlay');
+    if (!overlay) return;
 
+    let oldContainer = overlay.querySelector('.chatgptree-tree-container');
+    if (!oldContainer) return;
+
+    // Create a new, clean container. This has NO event listeners.
+    const newContainer = document.createElement('div');
+    newContainer.className = 'chatgptree-tree-container';
+    newContainer.innerHTML = `<div class="chatgptree-tree"></div>`;
+
+    const treeRoot = newContainer.querySelector('.chatgptree-tree');
+
+    // --- The rest of the drawing logic remains the same ---
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('width', '100%');
     svg.setAttribute('height', '100%');
@@ -224,10 +234,13 @@ function updateTreeVisualization() {
     svg.appendChild(viewportGroup);
     treeRoot.appendChild(svg);
 
-    const treeContainer = document.querySelector('.chatgptree-tree-container');
-    if (treeContainer) {
-        initializePanningEvents(treeContainer, viewportGroup);
-    }
+    // --- THE DEFINITIVE FIX ---
+    // 1. Replace the old container (and its listeners) with the new, clean one.
+    oldContainer.parentNode.replaceChild(newContainer, oldContainer);
+
+    // 2. Initialize events on the NEW, CLEAN container. This guarantees
+    //    there is only ever one set of active listeners.
+    initializePanningEvents(newContainer, viewportGroup);
 }
 
 /**
@@ -241,8 +254,9 @@ function initializePanningEvents(container, viewportGroup) {
       viewportGroup.setAttribute('transform', matrix);
     }
 
+    // This block is now guaranteed to work correctly because it runs on a
+    // clean element, and the flag is reset every time the overlay is opened.
     if (!viewState.isInitialized) {
-      // Applying your preferred default view state
       viewState.x = -6010.084020079088;
       viewState.y = -237.82964696926035;
       viewState.scale = 4.027897042213525;
@@ -251,14 +265,16 @@ function initializePanningEvents(container, viewportGroup) {
 
     updateTransform();
 
+    // The rest of this function is now safe because it's adding listeners
+    // to a brand-new element that has no previous listeners.
     let isPanning = false;
     let panTicking = false;
     let lastMouseX = 0;
     let lastMouseY = 0;
-    const panSpeed = 1.8; // Adjust this value to change panning speed
+    const panSpeed = 1.8;
 
     function startPan(evt) {
-      if (evt.button !== 0) return;
+      if (evt.button !== 0 || evt.target.closest('.chatgptree-zoom-btn')) return;
       evt.preventDefault();
       container.classList.add('grabbing');
       isPanning = true;
@@ -273,10 +289,12 @@ function initializePanningEvents(container, viewportGroup) {
       evt.preventDefault();
       const deltaX = (evt.clientX - lastMouseX) * panSpeed;
       const deltaY = (evt.clientY - lastMouseY) * panSpeed;
+
       lastMouseX = evt.clientX;
       lastMouseY = evt.clientY;
       viewState.x += deltaX;
       viewState.y += deltaY;
+
       if (!panTicking) {
         window.requestAnimationFrame(() => {
           updateTransform();
@@ -294,22 +312,44 @@ function initializePanningEvents(container, viewportGroup) {
       document.removeEventListener('mouseup', endPan);
     }
 
-    container.addEventListener('wheel', (evt) => {
-      evt.preventDefault();
-      const scaleChange = evt.deltaY > 0 ? 0.9 : 1.1;
-      const newScale = viewState.scale * scaleChange;
-      if (newScale >= 0.1 && newScale <= 10) {
-        const rect = container.getBoundingClientRect();
-        const mouseX = evt.clientX - rect.left;
-        const mouseY = evt.clientY - rect.top;
-        const svgX = (mouseX - viewState.x) / viewState.scale;
-        const svgY = (mouseY - viewState.y) / viewState.scale;
-        viewState.scale = newScale;
-        viewState.x = mouseX - (svgX * newScale);
-        viewState.y = mouseY - (svgY * newScale);
-        updateTransform();
-      }
-    }, { passive: false });
-
     container.addEventListener('mousedown', startPan);
+
+    const zoomInBtn = document.getElementById('chatgptree-zoom-in-btn');
+    const zoomOutBtn = document.getElementById('chatgptree-zoom-out-btn');
+    const ZOOM_FACTOR = 1.25;
+
+    const applyZoom = (zoomDirection) => {
+        const scaleChange = zoomDirection === 'in' ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+        const newScale = viewState.scale * scaleChange;
+
+        if (newScale < 0.1 || newScale > 10) return;
+
+        const rect = container.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const svgX = (centerX - viewState.x) / viewState.scale;
+        const svgY = (centerY - viewState.y) / viewState.scale;
+
+        viewState.scale = newScale;
+        viewState.x = centerX - (svgX * newScale);
+        viewState.y = centerY - (svgY * newScale);
+
+        updateTransform();
+    };
+
+    // The zoom button listeners were the primary bug. Since this entire
+    // initializePanningEvents function is re-run on every update, we must
+    // ensure the listeners are not simply added again. By assigning to `.onclick`,
+    // we replace the old handler with a new one that captures the correct closures
+    // (like the new `container` and `viewportGroup`), solving the bug cleanly.
+    if (zoomInBtn) {
+        // Using .onclick guarantees we replace any previous handler.
+        zoomInBtn.onclick = (e) => { e.stopPropagation(); applyZoom('in'); };
+    }
+
+    if (zoomOutBtn) {
+        // Using .onclick guarantees we replace any previous handler.
+        zoomOutBtn.onclick = (e) => { e.stopPropagation(); applyZoom('out'); };
+    }
 }

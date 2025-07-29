@@ -253,6 +253,35 @@ function injectStyles() {
         font-size: 24px; font-weight: 600; pointer-events: none; user-select: none;
         -webkit-user-select: none; -moz-user-select: none; text-shadow: none;
       }
+      .chatgptree-zoom-controls {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .chatgptree-zoom-btn {
+        width: 36px;
+        height: 36px;
+        background: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 500;
+        line-height: 1;
+        transition: all 0.2s ease;
+      }
+      .chatgptree-zoom-btn:hover {
+        background: rgba(255, 255, 255, 0.4);
+        transform: scale(1.1);
+      }  
       .chatgptree-close-btn {
         position: absolute; top: 20px; left: 20px; width: 36px; height: 36px;
         background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3);
@@ -884,47 +913,76 @@ function createTreeOverlay() {
     overlay.innerHTML = `
       <span class="chatgptree-overlay-title">Chatgptree</span>
       <button class="chatgptree-close-btn">×</button>
+      <div class="chatgptree-zoom-controls">
+        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-in-btn" title="Zoom In">+</button>
+        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-out-btn" title="Zoom Out">−</button>
+      </div>
       <div class="chatgptree-tree-container">
         <div class="chatgptree-tree"></div>
       </div>
     `;
     document.body.appendChild(overlay);
+    console.log('[ChatGPTree DBG] Tree overlay created and appended to body.'); // Added log
+  } else {
+    console.log('[ChatGPTree DBG] Tree overlay already exists in DOM.'); // Added log
   }
   return overlay;
 }
 
 /**
  * Toggles the visibility of the tree view overlay.
+ * It self-heals by creating the overlay if it doesn't exist.
  */
 function toggleTreeOverlay() {
-  const overlay = document.querySelector('.chatgptree-overlay');
+  console.log('[ChatGPTree DBG] toggleTreeOverlay() called.'); // Added log
+  let overlay = document.querySelector('.chatgptree-overlay');
   const treeBtn = document.querySelector('.chatgptree-tree-btn');
   const promptStack = document.querySelector('.chatgptree-prompt-jump-stack');
 
-  if (overlay) {
-    const isVisible = overlay.classList.toggle('visible');
-    const displayStyle = isVisible ? 'none' : 'flex';
-    if (treeBtn) {
-      treeBtn.classList.toggle('active', isVisible);
-      treeBtn.style.display = isVisible ? 'none' : 'flex';
-    }
-    if (promptStack) {
-      promptStack.style.display = displayStyle;
-    }
+  // If the overlay doesn't exist (e.g., wiped by React), create it now.
+  if (!overlay) {
+      console.warn('[ChatGPTree DBG] Tree overlay not found. Re-creating it now.'); // Added log
+      createTreeOverlay(); // This function from ui.js creates and appends the overlay.
+      overlay = document.querySelector('.chatgptree-overlay'); // Re-query the DOM to get the new reference.
+  }
 
-    if (isVisible) {
-      document.addEventListener('keydown', handleEscapeKey);
-      updateTreeVisualization();
-    } else {
-      document.removeEventListener('keydown', handleEscapeKey);
-    }
+  // Safety check: If for some reason createTreeOverlay still couldn't create it
+  if (!overlay) {
+      console.error('[ChatGPTree DBG] FATAL: Failed to find or create the tree overlay. Aborting toggle.');
+      return;
+  }
+  console.log('[ChatGPTree DBG] Tree overlay found. Toggling visibility.'); // Added log
 
-    // Update the counter's visibility whenever the tree is toggled.
-    if (window.updateTokenCounterVisibility) {
-      window.updateTokenCounterVisibility();
-    }
+
+  const isVisible = overlay.classList.toggle('visible');
+  const displayStyle = isVisible ? 'none' : 'flex';
+  if (treeBtn) {
+    treeBtn.classList.toggle('active', isVisible);
+    // Ensure the tree button and jump buttons are hidden/shown correctly with the overlay
+    treeBtn.style.display = isVisible ? 'none' : 'flex';
+  }
+  if (promptStack) {
+    promptStack.style.display = displayStyle;
+  }
+
+  if (isVisible) {
+    // This is the "reset button" that gets pressed ONCE when opening.
+    viewState.isInitialized = false;
+
+    document.addEventListener('keydown', handleEscapeKey);
+    updateTreeVisualization();
+  } else {
+    document.removeEventListener('keydown', handleEscapeKey);
+  }
+
+  // Update the counter's visibility whenever the tree is toggled.
+  if (window.updateTokenCounterVisibility) {
+    window.updateTokenCounterVisibility();
   }
 }
+
+
+
 
 /**
  * Handles the 'Escape' key to close the tree view overlay.
