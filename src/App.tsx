@@ -156,7 +156,7 @@ function Sidebar() {
                     <div className="sidebar-footer-content">
                         <span className="footer-version">v1.0.0</span>
                         <a className="footer-link" href="https://github.com/NachiketGadekar1/chatgptree" target="_blank" rel="noopener noreferrer">Contribute</a>
-                        <a className="footer-link footer-review" href="https://chrome.google.com/webstore/detail/chatgptree" target="_blank" rel="noopener noreferrer">Review</a>
+                        <a className="footer-link footer-review" href="https://chromewebstore.google.com/detail/chatgptree/glenkdfagnflbgfiahdiemgepfloeacp" target="_blank" rel="noopener noreferrer">Review</a>
                     </div>
                 </div>
         </aside>
