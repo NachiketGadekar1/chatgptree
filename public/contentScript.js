@@ -10,6 +10,7 @@
   let debouncedRenderButtons = null;
   let bookmarks = new Map();
   let chatHistoryObserver = null;
+  let debouncedBookmarkRenderer = null; 
 
   /**
    * Loads bookmarks from chrome.storage.local into the global map.
@@ -56,6 +57,38 @@
       buttonElement.setAttribute('aria-label', 'Remove bookmark');
     }
     saveBookmarks();
+  }
+
+    /**
+   * Listens for window resize events and re-renders the bookmark stars to fix
+   * the bug where they disappear due to React re-rendering the sidebar.
+   * This function is completely independent of other observers.
+   */
+  function setupBookmarkResizeListener() {
+    // If a listener already exists, do nothing.
+    if (debouncedBookmarkRenderer) {
+      return;
+    }
+
+    // Create a "debounced" function. This ensures that even if the resize event
+    // fires 100 times as you drag the window, our code only runs once at the end.
+    debouncedBookmarkRenderer = debounce(() => {
+      if (!isExtensionGloballyEnabled) return;
+      console.log('[ChatGPTree] Window resized. Re-creating missing bookmark stars.');
+      renderBookmarkStars(bookmarks);
+    }, 250);
+
+    window.addEventListener('resize', debouncedBookmarkRenderer);
+  }
+
+  /**
+   * Removes the independent bookmark resize listener to prevent memory leaks.
+   */
+  function removeBookmarkResizeListener() {
+    if (debouncedBookmarkRenderer) {
+      window.removeEventListener('resize', debouncedBookmarkRenderer);
+      debouncedBookmarkRenderer = null;
+    }
   }
 
 
@@ -385,6 +418,8 @@
       window.chatGPTreeShortcuts.destroyShortcuts();
     }
 
+    removeBookmarkResizeListener();
+
     // Destroy tokenizer
     if (window.chatGPTreeTokenizer) {
       window.chatGPTreeTokenizer.destroy();
@@ -521,6 +556,8 @@
           isInitialized = true;
       }
 
+      setupBookmarkResizeListener();
+
       renderTokenCounter(); // Ensure the element exists on the page.
 
       // Replace the old logic with a single call to our new central function.
@@ -542,12 +579,14 @@
   }
 
 
-async function cleanup() {
+  async function cleanup() {
       console.log('[ChatGPTree DBG] --- Running cleanup() ---');
       if (isChatTrackable && currentChatId) {
           await saveTreeToStorage(currentChatId, treeData);
       }
       if (autosaveInterval) clearInterval(autosaveInterval);
+
+      removeBookmarkResizeListener();
 
       document.querySelector('.chatgptree-prompt-jump-container')?.remove();
       document.querySelector('.chatgptree-tree-btn')?.remove();
@@ -557,7 +596,7 @@ async function cleanup() {
       
       treeData = { nodes: new Map(), branches: new Map(), activeBranch: [], branchStartId: null };
       
-      // --- FIX: Fully reset the viewState object on cleanup ---
+      // --- Fully reset the viewState object on cleanup ---
       // This ensures that when a new chat is loaded, the view starts from a clean,
       // predictable state using the magic numbers, and doesn't carry over
       // old pan/zoom data from the previous chat.
@@ -567,9 +606,7 @@ async function cleanup() {
           hasCreatedRootButton = false;
       }
       
-      // (The rest of the function remains the same)
-      // ...
-}
+  }
 
   /**
    * Sets up the main URL polling loop to detect navigation between chats.

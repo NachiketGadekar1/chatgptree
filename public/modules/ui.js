@@ -31,9 +31,6 @@ const STAR_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height
 /**
  * Injects the required CSS styles into the page's head.
  */
-/**
- * Injects the required CSS styles into the page's head.
- */
 function injectStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -253,41 +250,59 @@ function injectStyles() {
         font-size: 24px; font-weight: 600; pointer-events: none; user-select: none;
         -webkit-user-select: none; -moz-user-select: none; text-shadow: none;
       }
-      .chatgptree-zoom-controls {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        z-index: 10;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+      
+      .chatgptree-zoom-panel {
+        position: fixed;
+        bottom: 0; /* Flush with the bottom of the screen */
+        top: auto; /* Ensure 'top' is not set */
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 16px;
+        background: rgba(10, 10, 15, 0.75); /* Correct semi-transparent background */
+        color: #d1d5db;
+        border-top: 1px solid rgba(255, 255, 255, 0.15); /* Border on top now */
+        border-radius: 12px 12px 0 0; /* Rounded top corners, sharp bottom */
+        font-size: 0.9rem;
+        font-weight: 600;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.3); /* Shadow on top now */
+        backdrop-filter: blur(8px); /* Restoring blur as requested in prior steps, will appear transparent */
       }
-      .chatgptree-zoom-btn {
-        width: 36px;
-        height: 36px;
-        background: rgba(255, 255, 255, 0.2);
+      .chatgptree-zoom-panel.visible {
+        display: flex;
+      }
+      .chatgptree-zoom-panel .chatgptree-zoom-btn {
+        width: 26px;
+        height: 26px;
+        background: rgba(255, 255, 255, 0.1);
         color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 50%;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 28px;
-        font-weight: 500;
+        font-size: 22px;
+        font-weight: 400;
         line-height: 1;
+        padding-bottom: 1px;
         transition: all 0.2s ease;
       }
-      .chatgptree-zoom-btn:hover {
-        background: rgba(255, 255, 255, 0.4);
+      .chatgptree-zoom-panel .chatgptree-zoom-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
         transform: scale(1.1);
-      }  
+      }
       .chatgptree-close-btn {
-        position: absolute; top: 20px; left: 20px; width: 36px; height: 36px;
+        position: absolute; top: 20px; left: 20px;
+        width: 36px; height: 36px;
         background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
         font-size: 28px; line-height: 1; padding-bottom: 4px; transition: all 0.2s ease; z-index: 10;
       }
+      
       .chatgptree-close-btn:hover { background: rgba(255, 255, 255, 0.4); transform: scale(1.1); }
       .chatgptree-tree-container {
         position: relative; background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(8px);
@@ -903,6 +918,23 @@ function replaceEditMessageButtons() {
 }
 
 /**
+ * Creates the standalone zoom control panel if it doesn't exist.
+ */
+function createZoomPanel() {
+    if (document.getElementById('chatgptree-zoom-panel')) return;
+
+    const zoomPanel = document.createElement('div');
+    zoomPanel.id = 'chatgptree-zoom-panel';
+    zoomPanel.className = 'chatgptree-zoom-panel';
+    zoomPanel.innerHTML = `
+        <span style="user-select: none;">Zoom:</span>
+        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-in-btn" title="Zoom In">+</button>
+        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-out-btn" title="Zoom Out">−</button>
+    `;
+    document.body.appendChild(zoomPanel);
+}
+
+/**
  * Creates the main overlay element for the tree view if it doesn't exist.
  */
 function createTreeOverlay() {
@@ -910,13 +942,10 @@ function createTreeOverlay() {
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.className = 'chatgptree-overlay';
+    // --- HTML Simplified: Zoom controls are now external ---
     overlay.innerHTML = `
       <span class="chatgptree-overlay-title">Chatgptree</span>
       <button class="chatgptree-close-btn">×</button>
-      <div class="chatgptree-zoom-controls">
-        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-in-btn" title="Zoom In">+</button>
-        <button class="chatgptree-zoom-btn" id="chatgptree-zoom-out-btn" title="Zoom Out">−</button>
-      </div>
       <div class="chatgptree-tree-container">
         <div class="chatgptree-tree"></div>
       </div>
@@ -945,6 +974,10 @@ function toggleTreeOverlay() {
       createTreeOverlay(); // This function from ui.js creates and appends the overlay.
       overlay = document.querySelector('.chatgptree-overlay'); // Re-query the DOM to get the new reference.
   }
+  
+  // Ensure the external zoom panel exists
+  createZoomPanel();
+  const zoomPanel = document.getElementById('chatgptree-zoom-panel');
 
   // Safety check: If for some reason createTreeOverlay still couldn't create it
   if (!overlay) {
@@ -955,6 +988,12 @@ function toggleTreeOverlay() {
 
 
   const isVisible = overlay.classList.toggle('visible');
+  
+  // Toggle zoom panel visibility along with the overlay
+  if (zoomPanel) {
+    zoomPanel.classList.toggle('visible', isVisible);
+  }
+
   const displayStyle = isVisible ? 'none' : 'flex';
   if (treeBtn) {
     treeBtn.classList.toggle('active', isVisible);
@@ -980,8 +1019,6 @@ function toggleTreeOverlay() {
     window.updateTokenCounterVisibility();
   }
 }
-
-
 
 
 /**
