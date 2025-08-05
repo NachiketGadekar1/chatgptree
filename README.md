@@ -7,11 +7,6 @@ A browser extension that enhances the ChatGPT web interface with an interactive 
 ![Shields.io Badges](https://img.shields.io/badge/license-MIT-lightgrey)
 
 
-
-## Introduction
-
-ChatGPTree is a browser extension built to augment the standard ChatGPT interface. It introduces a suite of features designed for power users and developers, focusing on better navigation, prompt management, and interactivity. It allows you to visualize conversation branches, run code snippets directly, bookmark important chats, and control the interface with a rich set of keyboard shortcuts.
-
 ## Key Features
 
 -   **Conversation Tree View**: Visualize your entire chat history as an interactive, pannable, and zoomable SVG tree. Easily track and navigate between different conversation branches, ensuring you never lose context in complex, forked discussions.
@@ -33,11 +28,11 @@ ChatGPTree is a browser extension built to augment the standard ChatGPT interfac
 
 You can install and use chatgptree in two ways.
 
-### From the Web Store (Recommended)
+### From the Web Store
 
-*Coming soon. Links to the official Chrome Web Store and other stores will be placed here.*
+[Chrome webstore](https://chromewebstore.google.com/detail/chatgptree-chatgpt-extens/glenkdfagnflbgfiahdiemgepfloeacp)
 
-### From Source (For Developers)
+### From Source 
 
 If you want to build the extension from the source code, follow these steps:
 
