@@ -32,6 +32,8 @@ You can install and use chatgptree in two ways.
 
 [Chrome webstore](https://chromewebstore.google.com/detail/chatgptree-chatgpt-extens/glenkdfagnflbgfiahdiemgepfloeacp)
 
+links to other webstores will be added soon
+
 ### From Source 
 
 If you want to build the extension from the source code, follow these steps:
