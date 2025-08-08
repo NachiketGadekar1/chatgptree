@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "chatgptree: Chatgpt extension for powerusers",
   "description": "Poweruser tools for ChatGPT, including an interactive conversation tree, code runner, expandable chatbox, bookmarks and more",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "icons": {
     "16": "logo16.png",
     "32": "logo32.png",

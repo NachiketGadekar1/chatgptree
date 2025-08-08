@@ -1050,7 +1050,12 @@ function renderExpandComposerButton() {
     const maxAttempts = 150;
 
     function attemptToRender() {
-        const actionsContainer = document.querySelector('[data-testid="composer-footer-actions"]');
+        // OLD SELECTOR: '[data-testid="composer-footer-actions"]'
+        // This container is no longer present by default in the new UI.
+        // ---
+        // NEW, FIXED SELECTOR:
+        // This targets the container for the microphone/voice buttons, which is always visible.
+        const actionsContainer = document.querySelector('[data-testid="composer-trailing-actions"]');
 
         if (!actionsContainer) {
             if (attempts < maxAttempts) {
@@ -1062,6 +1067,7 @@ function renderExpandComposerButton() {
             return;
         }
 
+        // This check correctly prevents duplicate buttons from being added.
         if (actionsContainer.querySelector('.chatgptree-expand-btn')) {
             return; // Already exists, do nothing.
         }
@@ -1074,6 +1080,7 @@ function renderExpandComposerButton() {
         expandButton.setAttribute('aria-label', 'Expand composer');
         expandButton.setAttribute('title', 'Expand Composer');
         
+        // Prepending to the new container places the button before the other action icons.
         actionsContainer.prepend(expandButton);
     }
     attemptToRender();
