@@ -251,50 +251,56 @@ function injectStyles() {
         -webkit-user-select: none; -moz-user-select: none; text-shadow: none;
       }
       
+      /* --- MODIFIED ZOOM PANEL SECTION --- */
       .chatgptree-zoom-panel {
         position: fixed;
-        bottom: 0; /* Flush with the bottom of the screen */
-        top: auto; /* Ensure 'top' is not set */
+        bottom: 0;
+        top: auto;
         left: 50%;
         transform: translateX(-50%);
         z-index: 99999;
         display: none;
         align-items: center;
-        gap: 10px;
-        padding: 6px 16px;
-        background: rgba(10, 10, 15, 0.75); /* Correct semi-transparent background */
-        color: #d1d5db;
-        border-top: 1px solid rgba(255, 255, 255, 0.15); /* Border on top now */
-        border-radius: 12px 12px 0 0; /* Rounded top corners, sharp bottom */
+        gap: 12px; /* Increased gap */
+        padding: 8px 20px; /* Increased padding */
+        background: rgba(10, 10, 15, 0.85);
+        color: #6ee7b7; /* Green text for "Zoom:" */
+        border-top: 2px solid #6ee7b7; /* Green top border */
+        border-radius: 16px 16px 0 0; /* Slightly larger radius */
         font-size: 0.9rem;
         font-weight: 600;
-        box-shadow: 0 -4px 12px rgba(0,0,0,0.3); /* Shadow on top now */
-        backdrop-filter: blur(8px); /* Restoring blur as requested in prior steps, will appear transparent */
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.3), 0 -2px 10px rgba(110, 231, 183, 0.2); /* Added green glow */
+        backdrop-filter: blur(8px);
+        transition: all 0.3s ease;
       }
       .chatgptree-zoom-panel.visible {
         display: flex;
       }
       .chatgptree-zoom-panel .chatgptree-zoom-btn {
-        width: 26px;
-        height: 26px;
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        width: 30px; /* Increased size */
+        height: 30px; /* Increased size */
+        background: rgba(35, 39, 47, 0.8); /* Dark, subtle background */
+        color: #6ee7b7; /* Green icon color */
+        border: 2px solid #6ee7b7; /* Green border */
         border-radius: 50%;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 22px;
-        font-weight: 400;
+        font-size: 24px; /* Larger icon */
+        font-weight: 600; /* Bolder icon */
         line-height: 1;
-        padding-bottom: 1px;
+        padding-bottom: 2px;
         transition: all 0.2s ease;
       }
       .chatgptree-zoom-panel .chatgptree-zoom-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: #6ee7b7; /* Solid green background on hover */
+        color: #23272f; /* Dark icon color for contrast */
         transform: scale(1.1);
+        box-shadow: 0 0 10px rgba(110, 231, 183, 0.6); /* Green glow effect */
       }
+      /* --- END MODIFIED ZOOM PANEL SECTION --- */
+
       .chatgptree-close-btn {
         position: absolute; top: 20px; left: 20px;
         width: 36px; height: 36px;
@@ -610,7 +616,7 @@ function injectStyles() {
       }
     `;
     document.head.appendChild(style);
-  }
+}
 
 /**
  * Renders a special button indicating the user is logged out.
