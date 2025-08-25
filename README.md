@@ -32,7 +32,8 @@ You can install and use chatgptree in two ways.
 
 [Chrome webstore](https://chromewebstore.google.com/detail/chatgptree-chatgpt-extens/glenkdfagnflbgfiahdiemgepfloeacp)
 
-links to other webstores will be added soon
+[Microsoft Edge addons](https://microsoftedge.microsoft.com/addons/detail/chatgptree-chatgpt-exten/denionlhdacfhbkekochmjghdbgojofi)
+
 
 ### From Source 
 
