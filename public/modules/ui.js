@@ -1099,6 +1099,10 @@ let expandComposerPollingId = null;
  * Renders the button that opens the composer overlay with added debugging.
  * It uses a polling mechanism to robustly handle React's hydration.
  */
+/**
+ * Renders the button that opens the composer overlay with added debugging.
+ * It uses a polling mechanism to robustly handle React's hydration.
+ */
 function renderExpandComposerButton() {
     if (expandComposerPollingId) {
         cancelAnimationFrame(expandComposerPollingId);
@@ -1108,12 +1112,14 @@ function renderExpandComposerButton() {
     const maxAttempts = 150;
 
     function attemptToRender() {
-        // OLD SELECTOR: '[data-testid="composer-footer-actions"]'
-        // This container is no longer present by default in the new UI.
+        // PREVIOUS SELECTORS FAILED due to UI updates.
         // ---
-        // NEW, FIXED SELECTOR:
-        // This targets the container for the microphone/voice buttons, which is always visible.
-        const actionsContainer = document.querySelector('[data-testid="composer-trailing-actions"]');
+        // NEW, ROBUST SELECTOR:
+        // We find a stable element (the speech button container) and then
+        // target its direct parent, which is the flex container for all action buttons.
+        const speechButtonContainer = document.querySelector('[data-testid="composer-speech-button-container"]');
+        const actionsContainer = speechButtonContainer ? speechButtonContainer.parentElement : null;
+
 
         if (!actionsContainer) {
             if (attempts < maxAttempts) {
@@ -1138,7 +1144,7 @@ function renderExpandComposerButton() {
         expandButton.setAttribute('aria-label', 'Expand composer');
         expandButton.setAttribute('title', 'Expand Composer');
         
-        // Prepending to the new container places the button before the other action icons.
+        // Prepending to this specific container places the button correctly with the other icons.
         actionsContainer.prepend(expandButton);
     }
     attemptToRender();
