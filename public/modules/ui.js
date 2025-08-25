@@ -150,7 +150,7 @@ function injectStyles() {
         100% { box-shadow: 0 0 0 0 rgba(110, 231, 183, 0); opacity: 0; }
       }
       .chatgptree-bubble-highlight { position: relative !important; z-index: 1 !important; }
-      .chatgptree-bubble-highlight::before {
+       .chatgptree-bubble-highlight::before {
         content: '' !important; position: absolute !important; top: 0 !important; left: 0 !important;
         right: 0 !important; bottom: 0 !important; border-radius: inherit !important; z-index: -1 !important;
         pointer-events: none !important; animation: chatgptree-glow-fade 2.5s ease-out forwards !important;
@@ -177,52 +177,57 @@ function injectStyles() {
       .chatgptree-prompt-jump-stack {
         display: flex;
         flex-direction: column;
+        align-items: flex-end; /* Align all buttons to the right */
         gap: 12px;
       }
       .chatgptree-prompt-jump-btn {
-        position: relative; width: 36px; height: 36px; padding: 0; margin: 0; border: none;
-        background: none; cursor: pointer; outline: none; pointer-events: auto;
-      }
-      .chatgptree-prompt-jump-btn .btn-content {
-        /* This element no longer expands. It's just for the number. */
-        position: absolute; top: 0; right: 0; height: 36px; width: 36px;
-        display: flex; align-items: center; justify-content: center;
-        background: rgba(35, 39, 47, 0.9); color: #6ee7b7;
-        border: 2px solid #6ee7b7; border-radius: 18px; font-size: 1rem; font-weight: 600;
+        height: 36px;
+        display: flex; /* Key: Use flexbox for the inner containers */
+        align-items: center;
+        background: rgba(35, 39, 47, 0.9);
+        color: #6ee7b7;
+        border: 2px solid #6ee7b7;
+        border-radius: 18px; /* Use a single radius for a smooth pill transition */
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+        overflow: hidden;
+        pointer-events: auto;
       }
-      .chatgptree-prompt-jump-btn .index {
-        line-height: 1;
+      .index-container {
+        width: 32px; /* Fixed width of the number area */
+        height: 32px;
+        flex-shrink: 0; /* CRITICAL: Prevents this container from ever shrinking */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 600;
       }
-      .chatgptree-prompt-jump-btn:hover .btn-content {
-        background: #6ee7b7; color: #23272f; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      .preview-container {
+        display: flex;
+        align-items: center;
+        max-width: 0; /* Default state: hidden */
+        opacity: 0;
+        transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease-in-out;
+        white-space: nowrap;
+        overflow: hidden;
       }
-      .chatgptree-jump-tooltip {
-        position: fixed; /* Use fixed to escape parent's overflow */
-        top: 0;
-        left: 0;
-        background: #6ee7b7;
-        color: #23272f;
-        padding: 8px 16px;
-        border-radius: 18px;
+      .preview-text {
+        padding-left: 16px;
+        padding-right: 12px;
         font-size: 0.9rem;
         font-weight: 500;
-        white-space: nowrap;
-        z-index: 100001;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        max-width: 400px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        opacity: 0;
-        pointer-events: none;
-        transform: translate(0, 0) scale(0.95);
-        transition: opacity 0.15s ease-out, transform 0.15s ease-out;
-        will-change: transform, opacity;
       }
-      .chatgptree-jump-tooltip.visible {
+      .chatgptree-prompt-jump-btn:hover {
+        background: #6ee7b7;
+        color: #23272f; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      }
+
+      .chatgptree-prompt-jump-btn:hover .preview-container {
+        max-width: 350px; /* On hover: expand */
         opacity: 1;
-        transform: translate(0, 0) scale(1);
       }
       .chatgptree-tree-btn {
         position: fixed; top: 70px; right: 24px; z-index: 99999;
@@ -598,20 +603,20 @@ function injectStyles() {
 
       .chatgptree-token-counter {
         position: fixed;
-        top: 7px;
+        top: 10px;
         left: 50%;
         transform: translateX(-50%);
         z-index: 100000;
-        padding: 8px 12px;
-        background-color: rgba(35, 39, 47, 0.9);
+        padding: 0;
+        background-color: transparent;
         color: #6ee7b7;
-        border: 1px solid rgba(110, 231, 183, 0.4);
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
+        border: none;
+        font-size: 13px;
+        font-weight: 500;
         white-space: nowrap;
         user-select: none;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        box-shadow: none;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.5);
         display: none;
       }
     `;
@@ -734,18 +739,29 @@ function renderButtons() {
   prompts.forEach((prompt, i) => {
     const btn = document.createElement('button');
     btn.className = 'chatgptree-prompt-jump-btn';
-    const btnContent = document.createElement('div');
-    btnContent.className = 'btn-content';
+
+    // 1. Create the container for the preview text (this comes first for left-side expansion)
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'preview-container';
+
+    const preview = document.createElement('span');
+    preview.className = 'preview-text';
+    preview.textContent = getPromptPreview(prompt, 100);
+    previewContainer.appendChild(preview);
+    btn.appendChild(previewContainer);
+
+    // 2. Create the container for the index number
+    const indexContainer = document.createElement('div');
+    indexContainer.className = 'index-container';
+
     const index = document.createElement('span');
-    index.className = 'index';
+    index.className = 'index'; // The class is still useful for potential styling
     index.textContent = (i + 1).toString();
-    btnContent.appendChild(index);
-    btn.appendChild(btnContent);
+    indexContainer.appendChild(index);
+    btn.appendChild(indexContainer);
     
     // The click handler is managed by a global listener in contentScript.js
     btn.dataset.targetMessageId = prompt.dataset.messageId;
-    // Store the preview text for the global mouseover handler
-    btn.dataset.previewText = getPromptPreview(prompt, 100);
 
     stack.appendChild(btn);
   });
