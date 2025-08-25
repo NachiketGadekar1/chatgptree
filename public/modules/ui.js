@@ -230,6 +230,39 @@ function injectStyles() {
         max-width: 350px; /* On hover: expand */
         opacity: 1;
       }
+
+      /* --- NEW: Fallback Expand Button Style --- */
+      .chatgptree-expand-btn-fallback {
+        position: fixed;
+        bottom: 45px;
+        right: 70px;
+        z-index: 9999;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: rgba(35, 39, 47, 0.9);
+        color: #6ee7b7;
+        border: 2px solid #6ee7b7;
+        border-radius: 50%; /* Circular shape */
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .chatgptree-expand-btn-fallback:hover {
+        background: #6ee7b7;
+        color: #23272f;
+        transform: scale(1.1);
+      }
+      .chatgptree-expand-btn-fallback svg {
+        width: 20px;
+        height: 20px;
+      }
+      /* --- END Fallback Style --- */
+
+
       .chatgptree-tree-btn {
         position: fixed; top: 70px; right: 24px; z-index: 99999;
         height: 36px;
@@ -1096,12 +1129,9 @@ const EXPAND_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="n
 let expandComposerPollingId = null;
 
 /**
- * Renders the button that opens the composer overlay with added debugging.
- * It uses a polling mechanism to robustly handle React's hydration.
- */
-/**
- * Renders the button that opens the composer overlay with added debugging.
- * It uses a polling mechanism to robustly handle React's hydration.
+ * Renders the button that opens the composer overlay.
+ * If the target chatbox location isn't found, it creates a fallback
+ * button in the bottom-right corner of the screen.
  */
 function renderExpandComposerButton() {
     if (expandComposerPollingId) {
@@ -1109,43 +1139,49 @@ function renderExpandComposerButton() {
     }
 
     let attempts = 0;
-    const maxAttempts = 150;
+    const maxAttempts = 15;
 
     function attemptToRender() {
-        // PREVIOUS SELECTORS FAILED due to UI updates.
-        // ---
-        // NEW, ROBUST SELECTOR:
-        // We find a stable element (the speech button container) and then
-        // target its direct parent, which is the flex container for all action buttons.
         const speechButtonContainer = document.querySelector('[data-testid="composer-speech-button-container"]');
         const actionsContainer = speechButtonContainer ? speechButtonContainer.parentElement : null;
 
+        // --- PLAN A: Inject into the chatbox ---
+        if (actionsContainer) {
+            // If we succeed, make sure any old fallback button is removed.
+            document.querySelector('.chatgptree-expand-btn-fallback')?.remove();
 
-        if (!actionsContainer) {
-            if (attempts < maxAttempts) {
-                attempts++;
-                expandComposerPollingId = requestAnimationFrame(attemptToRender);
-            } else {
-                console.warn('[ChatGPTree DBG] Timed out waiting for composer actions container.');
+            if (!actionsContainer.querySelector('.chatgptree-expand-btn')) {
+                const expandButton = document.createElement('button');
+                expandButton.type = 'button';
+                expandButton.className = 'chatgptree-expand-btn';
+                expandButton.innerHTML = EXPAND_ICON_SVG;
+                expandButton.setAttribute('aria-label', 'Expand composer');
+                expandButton.setAttribute('title', 'Expand Composer');
+                actionsContainer.prepend(expandButton);
             }
-            return;
+            return; // Success, stop polling.
         }
 
-        // This check correctly prevents duplicate buttons from being added.
-        if (actionsContainer.querySelector('.chatgptree-expand-btn')) {
-            return; // Already exists, do nothing.
+        // --- PLAN B: Fallback if selector fails ---
+        if (attempts < maxAttempts) {
+            attempts++;
+            expandComposerPollingId = requestAnimationFrame(attemptToRender);
+        } else {
+            // Timed out, create the fallback button.
+            console.warn('[ChatGPTree] Could not find composer actions container. Creating fallback button.');
+            
+            // Only create the fallback if it doesn't already exist.
+            if (document.querySelector('.chatgptree-expand-btn-fallback')) return;
+
+            const fallbackButton = document.createElement('button');
+            fallbackButton.type = 'button';
+            // Add BOTH classes: one for click handling, one for fallback styling.
+            fallbackButton.className = 'chatgptree-expand-btn chatgptree-expand-btn-fallback';
+            fallbackButton.innerHTML = EXPAND_ICON_SVG;
+            fallbackButton.setAttribute('aria-label', 'Expand composer');
+            fallbackButton.setAttribute('title', 'Expand Composer (Fallback)');
+            document.body.appendChild(fallbackButton);
         }
-        
-        console.log('[ChatGPTree DBG] Found composer actions container. Injecting expand button.');
-        const expandButton = document.createElement('button');
-        expandButton.type = 'button';
-        expandButton.className = 'chatgptree-expand-btn';
-        expandButton.innerHTML = EXPAND_ICON_SVG;
-        expandButton.setAttribute('aria-label', 'Expand composer');
-        expandButton.setAttribute('title', 'Expand Composer');
-        
-        // Prepending to this specific container places the button correctly with the other icons.
-        actionsContainer.prepend(expandButton);
     }
     attemptToRender();
 }
