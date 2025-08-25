@@ -8,6 +8,7 @@
   let animationFrameId = null;
   let lifecycleHandlers = {};
   let debouncedRenderButtons = null;
+   let debouncedWindowModeCheck = null; 
   let bookmarks = new Map();
   let chatHistoryObserver = null;
   let debouncedBookmarkRenderer = null; 
@@ -89,6 +90,46 @@
       window.removeEventListener('resize', debouncedBookmarkRenderer);
       debouncedBookmarkRenderer = null;
     }
+  }
+
+   /**
+   * Checks if the window is maximized and adds/removes a class from the body.
+   * This now correctly uses outerWidth/outerHeight to measure the whole window.
+   */
+  function updateWindowStateClass() {
+    // A generous tolerance to account for different OS window borders/shadows
+    const tolerance = 20; 
+    
+    // Compare the screen's available space with the browser window's total outer dimensions
+    const isMaximized = (screen.availWidth - window.outerWidth) < tolerance && 
+                        (screen.availHeight - window.outerHeight) < tolerance;
+    
+    if (isMaximized) {
+      document.body.classList.remove('chatgptree-windowed-mode');
+    } else {
+      document.body.classList.add('chatgptree-windowed-mode');
+    }
+  }
+  /**
+   * Sets up the listener for window resize events to check for maximized state.
+   */
+  function setupWindowModeListener() {
+    if (debouncedWindowModeCheck) return; // Already setup
+
+    debouncedWindowModeCheck = debounce(updateWindowStateClass, 150);
+    window.addEventListener('resize', debouncedWindowModeCheck);
+    updateWindowStateClass(); // Run once on setup
+  }
+
+  /**
+   * Removes the window state listener and cleans up the body class.
+   */
+  function removeWindowModeListener() {
+    if (debouncedWindowModeCheck) {
+      window.removeEventListener('resize', debouncedWindowModeCheck);
+      debouncedWindowModeCheck = null;
+    }
+    document.body.classList.remove('chatgptree-windowed-mode');
   }
 
 
@@ -378,6 +419,7 @@
     // Debounced resize handler for jump buttons
     debouncedRenderButtons = debounce(renderButtons, 150);
     window.addEventListener('resize', debouncedRenderButtons);
+    setupWindowModeListener();
 
     // Initialize shortcuts
     if (window.chatGPTreeShortcuts) {
@@ -412,6 +454,7 @@
         window.removeEventListener('resize', debouncedRenderButtons);
         debouncedRenderButtons = null;
     }
+    removeWindowModeListener();
 
     // Destroy shortcuts listener
     if (window.chatGPTreeShortcuts) {

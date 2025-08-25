@@ -190,13 +190,13 @@ function injectStyles() {
         border-radius: 18px; /* Use a single radius for a smooth pill transition */
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         cursor: pointer;
-        transition: background-color 0.3s, color 0.3s;
+        transition: background-color 0.3s, color 0.3s, opacity 0.3s ease; /* ADDED opacity transition */
         overflow: hidden;
         pointer-events: auto;
       }
       .index-container {
-        width: 32px; /* Fixed width of the number area */
-        height: 32px;
+        width: 32px; 
+        height: 100%; 
         flex-shrink: 0; /* CRITICAL: Prevents this container from ever shrinking */
         display: flex;
         align-items: center;
@@ -205,6 +205,7 @@ function injectStyles() {
         font-weight: 600;
       }
       .preview-container {
+        height: 100%;
         display: flex;
         align-items: center;
         max-width: 0; /* Default state: hidden */
@@ -323,6 +324,24 @@ function injectStyles() {
         -ms-user-select: none; touch-action: none;
       }
       .chatgptree-tree-container.grabbing { cursor: grabbing; }
+
+      /* --- NEW STYLES FOR WINDOWED MODE --- */
+      .chatgptree-windowed-mode .chatgptree-prompt-jump-btn,
+      .chatgptree-windowed-mode .chatgptree-tree-btn {
+        opacity: 0.25;
+      }
+      .chatgptree-windowed-mode .chatgptree-prompt-jump-btn:hover,
+      .chatgptree-windowed-mode .chatgptree-tree-btn:hover {
+        opacity: 1;
+      }
+      .chatgptree-windowed-mode .chatgptree-overlay {
+        background: rgba(0, 0, 0, 0.3); /* Less dark background */
+      }
+      .chatgptree-windowed-mode .chatgptree-tree-container {
+        background: rgba(255, 255, 255, 0.05); /* More transparent container */
+      }
+      /* --- END NEW STYLES --- */
+
       @media (max-width: 768px) {
         .chatgptree-prompt-jump-container { right: 12px; }
         .chatgptree-prompt-jump-btn, .chatgptree-prompt-jump-btn .btn-content { min-width: 32px; height: 32px; }
