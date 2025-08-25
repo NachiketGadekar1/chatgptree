@@ -241,6 +241,10 @@
       console.log('[ChatGPTree DBG] toggleComposerOverlay() called.');
       let overlay = document.querySelector('.chatgptree-composer-overlay');
 
+      // --- ADDED: Selectors for other UI elements ---
+      const treeBtn = document.querySelector('.chatgptree-tree-btn');
+      const jumpButtonsContainer = document.querySelector('.chatgptree-prompt-jump-container');
+
       // If the overlay doesn't exist (e.g., wiped by React), create it now.
       if (!overlay) {
           console.warn('[ChatGPTree DBG] Composer overlay not found. Re-creating it now.');
@@ -257,6 +261,16 @@
       console.log('[ChatGPTree DBG] Overlay and textarea found. Toggling visibility.');
 
       const isVisible = overlay.classList.toggle('visible');
+
+      // --- ADDED: Logic to hide/show other buttons ---
+      if (treeBtn) {
+          treeBtn.style.display = isVisible ? 'none' : 'flex';
+      }
+      if (jumpButtonsContainer) {
+          // Resetting to an empty string lets the CSS default (block) take over.
+          jumpButtonsContainer.style.display = isVisible ? 'none' : '';
+      }
+      // --- END ADDED LOGIC ---
 
       if (isVisible) {
           textarea.focus();

@@ -547,19 +547,19 @@ function injectStyles() {
         border: 1px solid rgba(255, 255, 255, 0.2);
         border-radius: 12px;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        padding: 24px;
+        padding: 16px; /* REDUCED from 24px */
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px; /* REDUCED from 16px */
         position: relative;
         justify-content: space-between; /* Pushes send button to bottom */
       }
       .chatgptree-composer-title {
         color: #6ee7b7;
-        font-size: 20px;
+        font-size: 18px; /* REDUCED from 20px */
         font-weight: 600;
         margin: 0;
-        padding-bottom: 12px;
+        padding-bottom: 8px; /* REDUCED from 12px */
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         text-align: center;
       }
@@ -647,7 +647,7 @@ function injectStyles() {
       }
       .chatgptree-composer-close-btn {
         position: absolute;
-        top: 16px;
+        top: 10px;
         left: 16px;
         width: 36px;
         height: 36px;
