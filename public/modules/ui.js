@@ -325,7 +325,24 @@ function injectStyles() {
       }
       .chatgptree-tree-container.grabbing { cursor: grabbing; }
 
-      /* --- NEW STYLES FOR WINDOWED MODE --- */
+      /* --- Tree Node Hover Effect --- */
+      .chatgptree-tree g.chatgptree-node rect,
+      .chatgptree-tree g.chatgptree-node text {
+        /* Add smooth transitions for all changes */
+        transition: all 0.2s ease-in-out;
+      }
+      .chatgptree-tree g.chatgptree-node:hover rect {
+        /* On hover, make the border brighter and slightly thicker */
+        stroke: #6ee7b7 !important;
+        stroke-width: 2.5px !important;
+        /* A subtle white glow instead of the green one */
+        filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7));
+      }
+     
+      /* --- END Tree Node Hover Effect --- */
+
+
+      /* --- STYLES FOR WINDOWED MODE --- */
       .chatgptree-windowed-mode .chatgptree-prompt-jump-btn,
       .chatgptree-windowed-mode .chatgptree-tree-btn {
         opacity: 0.25;
