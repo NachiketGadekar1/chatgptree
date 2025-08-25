@@ -1139,7 +1139,7 @@ function renderExpandComposerButton() {
     }
 
     let attempts = 0;
-    const maxAttempts = 15;
+    const maxAttempts = 30;
 
     function attemptToRender() {
         const speechButtonContainer = document.querySelector('[data-testid="composer-speech-button-container"]');
@@ -1170,6 +1170,7 @@ function renderExpandComposerButton() {
             // Timed out, create the fallback button.
             console.warn('[ChatGPTree] Could not find composer actions container. Creating fallback button.');
             
+            if (document.querySelector('.chatgptree-expand-btn')) return;
             // Only create the fallback if it doesn't already exist.
             if (document.querySelector('.chatgptree-expand-btn-fallback')) return;
 
