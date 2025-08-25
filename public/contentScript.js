@@ -182,6 +182,17 @@
       const sendBtn = overlay.querySelector('#chatgptree-composer-send-btn');
       const textarea = overlay.querySelector('#chatgptree-composer-textarea');
 
+      // --- THE FIX: Use a single, delegated mousedown listener ---
+      // This listener on the parent overlay catches mousedown events for both
+      // the send button and any dynamically created suggestion items.
+      overlay.onmousedown = (e) => {
+          // If the target is the send button OR a suggestion item...
+          if (e.target.closest('#chatgptree-composer-send-btn') || e.target.closest('.chatgptree-suggestion-item')) {
+              // ...prevent the default action (stealing focus from the textarea).
+              e.preventDefault();
+          }
+      };
+
       if (sendBtn) {
           // Prevent the textarea from losing focus when the button is pressed.
           // This stops the autocomplete bar from hiding and causing a layout shift,

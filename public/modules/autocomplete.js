@@ -17,6 +17,7 @@
   };
 
   const MAX_SUGGESTIONS = 7;
+  const MAX_WORD_LENGTH_FOR_SEARCH = 20;
   const WORD_BREAK_CHARS = /[\s.,;()[\]{}<>:"'|`~+=\-*\/\\]/;
 
   /**
@@ -64,7 +65,7 @@
     suggestionBar = document.getElementById('chatgptree-autocomplete-bar');
 
     // Debounce the input handler to prevent lag
-    debouncedHandleInput = debounce(handleInput, 150);
+    debouncedHandleInput = debounce(handleInput, 250);
 
     textarea.addEventListener('input', debouncedHandleInput);
     textarea.addEventListener('keydown', handleKeydown, true); // Use capture phase for Tab/Enter
@@ -98,7 +99,8 @@
   function handleInput() {
     const { word, startIndex } = getCurrentWordInfo(textarea);
 
-    if (!word) {
+    // If there's no word OR the word is absurdly long, stop.
+    if (!word || word.length > MAX_WORD_LENGTH_FOR_SEARCH) {
       hideSuggestions();
       return;
     }
