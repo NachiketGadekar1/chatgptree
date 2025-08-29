@@ -32,7 +32,7 @@
       
       const tokenizer = window[TOKENIZER_GLOBAL];
       const tokens = tokenizer.encode(fullText);
-      counterUI.textContent = `Total Tokens: ${tokens.length}`;
+      counterUI.textContent = `Token Count: ${tokens.length}`;
 
     } catch (error) {
       console.error('[ChatGPTree] Tokenizer Error:', error.message);

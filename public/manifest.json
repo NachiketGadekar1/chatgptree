@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Chatgptree: Advanced Tools for ChatGPT",
   "description": "Add powertools to Chatgpt web interface like an interactive conversation tree, code runner, expandable chatbox, bookmarks and more",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "icons": {
     "16": "logo16.png",
     "32": "logo32.png",
