@@ -314,6 +314,30 @@ function initializePanningEvents(container, viewportGroup) {
 
     container.addEventListener('mousedown', startPan);
 
+    function handleWheel(evt) {
+      evt.preventDefault();
+      const zoomIntensity = 0.1;
+      const scaleFactor = evt.deltaY > 0 ? (1 - zoomIntensity) : (1 + zoomIntensity);
+      const newScale = viewState.scale * scaleFactor;
+
+      if (newScale < 0.1 || newScale > 10) return;
+
+      const rect = container.getBoundingClientRect();
+      const mouseX = evt.clientX - rect.left;
+      const mouseY = evt.clientY - rect.top;
+
+      const pointX = (mouseX - viewState.x) / viewState.scale;
+      const pointY = (mouseY - viewState.y) / viewState.scale;
+
+      viewState.scale = newScale;
+      viewState.x = mouseX - pointX * newScale;
+      viewState.y = mouseY - pointY * newScale;
+
+      updateTransform();
+    }
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
     const zoomInBtn = document.getElementById('chatgptree-zoom-in-btn');
     const zoomOutBtn = document.getElementById('chatgptree-zoom-out-btn');
     const ZOOM_FACTOR = 1.25;

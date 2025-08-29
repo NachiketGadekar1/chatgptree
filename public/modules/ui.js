@@ -290,7 +290,7 @@ function injectStyles() {
         -webkit-user-select: none; -moz-user-select: none; text-shadow: none;
       }
       
-      /* --- MODIFIED ZOOM PANEL SECTION --- */
+      /* --- SUBTLE ZOOM PANEL SECTION --- */
       .chatgptree-zoom-panel {
         position: fixed;
         bottom: 0;
@@ -300,15 +300,15 @@ function injectStyles() {
         z-index: 99999;
         display: none;
         align-items: center;
-        gap: 12px; /* Increased gap */
-        padding: 8px 20px; /* Increased padding */
-        background: rgba(10, 10, 15, 0.85);
-        color: #6ee7b7; /* Green text for "Zoom:" */
-        border-top: 2px solid #6ee7b7; /* Green top border */
-        border-radius: 16px 16px 0 0; /* Slightly larger radius */
-        font-size: 0.9rem;
-        font-weight: 600;
-        box-shadow: 0 -4px 12px rgba(0,0,0,0.3), 0 -2px 10px rgba(110, 231, 183, 0.2); /* Added green glow */
+        gap: 8px;
+        padding: 6px 16px;
+        background: rgba(10, 10, 15, 0.75);
+        color: #a0aec0; /* Subtle gray text */
+        border-top: 1px solid rgba(255, 255, 255, 0.2); /* Subtle border */
+        border-radius: 12px 12px 0 0;
+        font-size: 0.85rem;
+        font-weight: 500;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.3); /* Removed green glow */
         backdrop-filter: blur(8px);
         transition: all 0.3s ease;
       }
@@ -316,29 +316,30 @@ function injectStyles() {
         display: flex;
       }
       .chatgptree-zoom-panel .chatgptree-zoom-btn {
-        width: 30px; /* Increased size */
-        height: 30px; /* Increased size */
-        background: rgba(35, 39, 47, 0.8); /* Dark, subtle background */
-        color: #6ee7b7; /* Green icon color */
-        border: 2px solid #6ee7b7; /* Green border */
+        width: 28px;
+        height: 28px;
+        background: transparent;
+        color: #a0aec0; /* Subtle gray icon */
+        border: 1px solid #a0aec0; /* Subtle gray border */
         border-radius: 50%;
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 24px; /* Larger icon */
-        font-weight: 600; /* Bolder icon */
+        font-size: 20px; 
+        font-weight: 400;
         line-height: 1;
-        padding-bottom: 2px;
+        padding-bottom: 4px; 
         transition: all 0.2s ease;
       }
       .chatgptree-zoom-panel .chatgptree-zoom-btn:hover {
-        background: #6ee7b7; /* Solid green background on hover */
-        color: #23272f; /* Dark icon color for contrast */
-        transform: scale(1.1);
-        box-shadow: 0 0 10px rgba(110, 231, 183, 0.6); /* Green glow effect */
+        background: rgba(255, 255, 255, 0.1);
+        color: #e5e5e5;
+        border-color: #e5e5e5;
+        transform: none; /* No scale effect */
+        box-shadow: none; /* No glow effect */
       }
-      /* --- END MODIFIED ZOOM PANEL SECTION --- */
+      /* --- END SUBTLE ZOOM PANEL SECTION --- */
 
       .chatgptree-close-btn {
         position: absolute; top: 20px; left: 20px;
@@ -1018,7 +1019,7 @@ function createZoomPanel() {
     zoomPanel.id = 'chatgptree-zoom-panel';
     zoomPanel.className = 'chatgptree-zoom-panel';
     zoomPanel.innerHTML = `
-        <span style="user-select: none;">Zoom:</span>
+        <span style="user-select: none;">Zoom </span>
         <button class="chatgptree-zoom-btn" id="chatgptree-zoom-in-btn" title="Zoom In">+</button>
         <button class="chatgptree-zoom-btn" id="chatgptree-zoom-out-btn" title="Zoom Out">−</button>
     `;
